@@ -1,0 +1,50 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{0B445CFF-EE0D-4EDE-8745-DF6593D03621}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IPhonePhotos.Core", "src\IPhonePhotos.Core\IPhonePhotos.Core.csproj", "{C78744C1-C17D-44F8-9D56-F1864E377708}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IPhonePhotos.Cli", "src\IPhonePhotos.Cli\IPhonePhotos.Cli.csproj", "{2C9D11A0-A2A4-4707-8A21-39A3D292F3E8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IPhonePhotos.App", "src\IPhonePhotos.App\IPhonePhotos.App.csproj", "{8AAAEDED-F1EA-4441-BF0B-C7DA749BA984}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{3FEACCCB-3E7F-4ABB-84EC-80B0AE9C6301}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IPhonePhotos.Tests", "tests\IPhonePhotos.Tests\IPhonePhotos.Tests.csproj", "{0B1FE1FF-2104-459A-8455-1F262DD3D2A9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C78744C1-C17D-44F8-9D56-F1864E377708}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C78744C1-C17D-44F8-9D56-F1864E377708}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C78744C1-C17D-44F8-9D56-F1864E377708}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C78744C1-C17D-44F8-9D56-F1864E377708}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2C9D11A0-A2A4-4707-8A21-39A3D292F3E8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2C9D11A0-A2A4-4707-8A21-39A3D292F3E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2C9D11A0-A2A4-4707-8A21-39A3D292F3E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2C9D11A0-A2A4-4707-8A21-39A3D292F3E8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8AAAEDED-F1EA-4441-BF0B-C7DA749BA984}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8AAAEDED-F1EA-4441-BF0B-C7DA749BA984}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8AAAEDED-F1EA-4441-BF0B-C7DA749BA984}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8AAAEDED-F1EA-4441-BF0B-C7DA749BA984}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0B1FE1FF-2104-459A-8455-1F262DD3D2A9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0B1FE1FF-2104-459A-8455-1F262DD3D2A9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0B1FE1FF-2104-459A-8455-1F262DD3D2A9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0B1FE1FF-2104-459A-8455-1F262DD3D2A9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{C78744C1-C17D-44F8-9D56-F1864E377708} = {0B445CFF-EE0D-4EDE-8745-DF6593D03621}
+		{2C9D11A0-A2A4-4707-8A21-39A3D292F3E8} = {0B445CFF-EE0D-4EDE-8745-DF6593D03621}
+		{8AAAEDED-F1EA-4441-BF0B-C7DA749BA984} = {0B445CFF-EE0D-4EDE-8745-DF6593D03621}
+		{0B1FE1FF-2104-459A-8455-1F262DD3D2A9} = {3FEACCCB-3E7F-4ABB-84EC-80B0AE9C6301}
+	EndGlobalSection
+EndGlobal

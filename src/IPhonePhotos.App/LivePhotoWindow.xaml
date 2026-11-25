@@ -1,0 +1,50 @@
+<Window x:Class="IPhonePhotos.App.LivePhotoWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Live Photo" Height="780" Width="760" MinHeight="620" MinWidth="620"
+        WindowStartupLocation="CenterOwner" Background="{DynamicResource PageBrush}"
+        FontFamily="{StaticResource UiFont}" FontSize="14" ShowInTaskbar="False">
+    <Grid Margin="24,20,24,18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="NameText" Grid.Row="0" FontSize="20" FontWeight="Bold" FontFamily="{StaticResource UiDisplayFont}"/>
+
+        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,12,0,12" Padding="8">
+            <MediaElement x:Name="Player" LoadedBehavior="Manual" UnloadedBehavior="Manual" ScrubbingEnabled="True"
+                          Stretch="Uniform" IsMuted="True" MediaOpened="OnOpened" MediaEnded="OnEnded" MediaFailed="OnFailed"/>
+        </Border>
+
+        <StackPanel Grid.Row="2">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Button x:Name="PlayButton" Content="Reproducir" Style="{StaticResource SecondaryButton}" Click="OnPlay" MinWidth="100"/>
+                <Slider x:Name="Seek" AutomationProperties.Name="Posición del clip" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Minimum="0" Maximum="1"
+                        ValueChanged="OnSeek" IsEnabled="False" AutomationProperties.AutomationId="LiveSlider"/>
+                <TextBlock x:Name="TimeText" Grid.Column="2" VerticalAlignment="Center" MinWidth="90" TextAlignment="Right" Text="0,00 s"/>
+            </Grid>
+            <TextBlock x:Name="InfoText" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0" FontSize="12"/>
+        </StackPanel>
+
+        <TextBlock x:Name="StatusText" Grid.Row="3" TextWrapping="Wrap" Margin="0,10,0,0" FontWeight="SemiBold"
+                   AutomationProperties.AutomationId="LiveStatus"/>
+
+        <WrapPanel Grid.Row="4" Margin="0,12,0,0" HorizontalAlignment="Right">
+            <Button x:Name="KeyButton" Content="Ir al instante de la foto" Style="{StaticResource SecondaryButton}" Margin="0,0,8,8" Click="OnKey"/>
+            <Button x:Name="SaveFrameButton" Content="Guardar este fotograma como JPG" Style="{StaticResource PrimaryButton}" Margin="0,0,8,8"
+                    Click="OnSaveFrame" AutomationProperties.AutomationId="LiveSaveFrame"/>
+            <Button x:Name="SaveOriginalButton" Content="Guardar la foto original como JPG" Style="{StaticResource SecondaryButton}" Margin="0,0,8,8"
+                    Click="OnSaveOriginal" AutomationProperties.AutomationId="LiveSaveOriginal"/>
+            <Button Content="Cerrar" Style="{StaticResource SecondaryButton}" Margin="0,0,0,8" Click="OnClose"/>
+        </WrapPanel>
+    </Grid>
+</Window>

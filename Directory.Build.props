@@ -1,0 +1,8 @@
+<Project>
+  <!-- Versión ÚNICA de la aplicación: la usan App, Cli, publish.ps1, build-installer.ps1 y el instalador. -->
+  <PropertyGroup>
+    <Version>1.5.0</Version>
+    <Authors>AMG-Soulrak</Authors>
+    <Copyright>Copyright (c) 2026 AMG-Soulrak. Licencia MIT.</Copyright>
+  </PropertyGroup>
+</Project>

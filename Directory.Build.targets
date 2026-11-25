@@ -1,0 +1,16 @@
+<Project>
+  <!--
+    Al publicar no se meten en el ejecutable:
+     · las herramientas de línea de órdenes de libimobiledevice (ideviceinstaller.exe, usbmuxd.exe, idevicerestore.exe…):
+       la app no las usa (solo carga imobiledevice.dll y sus bibliotecas) y varias son GPL;
+     · los modelos ONNX de caras: su licencia (insightface) es «non-commercial research only»; cada usuario los obtiene
+       aparte en %LOCALAPPDATA%\IPhonePhotos\models (ver README).
+  -->
+  <Target Name="QuitarNoRedistribuibles" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+                             Condition="'%(ResolvedFileToPublish.NuGetPackageId)' == 'iMobileDevice-net' And '%(ResolvedFileToPublish.Extension)' == '.exe'" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(ResolvedFileToPublish.Extension)' == '.onnx'" />
+    </ItemGroup>
+  </Target>
+</Project>

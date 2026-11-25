@@ -1,0 +1,103 @@
+<UserControl x:Class="IPhonePhotos.App.DuplicatesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontFamily="{StaticResource UiFont}" FontSize="14">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="Fotos repetidas" Style="{StaticResource LargeTitle}"/>
+                <TextBlock x:Name="StatusText" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,2,12,0"
+                           Text="Busca fotos iguales o muy parecidas. La app recomienda la más nítida, pero la decisión es tuya y nada se borra: las demás se apartan a la carpeta «_Duplicados»."
+                           AutomationProperties.AutomationId="DupStatus"/>
+            </StackPanel>
+            <ComboBox x:Name="Sensitivity" AutomationProperties.Name="Sensibilidad" Grid.Column="1" Width="230" VerticalAlignment="Top" SelectedIndex="0" Margin="0,0,8,0">
+                <ComboBoxItem Tag="6" Content="Muy parecidas (recomendado)"/>
+                <ComboBoxItem Tag="3" Content="Casi idénticas"/>
+                <ComboBoxItem Tag="10" Content="Parecidas (más resultados)"/>
+            </ComboBox>
+            <Button x:Name="SearchButton" Grid.Column="2" Content="Buscar repetidas" VerticalAlignment="Top"
+                    Style="{StaticResource PrimaryButton}" Click="OnSearch" AutomationProperties.AutomationId="DupSearch"/>
+        </Grid>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="230"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <ListBox x:Name="GroupList" AutomationProperties.Name="Grupos de fotos repetidas" SelectionChanged="OnGroupSelected" AutomationProperties.AutomationId="DupGroupList">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border x:Name="bd" CornerRadius="6" Padding="12,9" Margin="0,1,6,1" Background="Transparent">
+                                        <ContentPresenter/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="bd" Property="Background" Value="{DynamicResource ControlHover}"/></Trigger>
+                                        <Trigger Property="IsSelected" Value="True"><Setter TargetName="bd" Property="Background" Value="{DynamicResource NavSelected}"/></Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+            </ListBox>
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                <ItemsControl x:Name="Cards">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Width="230" Margin="4" Padding="8" Background="{DynamicResource CardBrush}" CornerRadius="8" Cursor="Hand"
+                                    BorderThickness="2" BorderBrush="{Binding Outline}" MouseLeftButtonDown="OnCardOpen"
+                                    ToolTip="Clic: verla en grande">
+                                <StackPanel>
+                                    <Border Height="190" CornerRadius="6" Background="#10808080" ClipToBounds="True">
+                                        <Image Source="{Binding Thumb.Source}" Stretch="UniformToFill"/>
+                                    </Border>
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="2,8,2,0" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding Info}" Foreground="{DynamicResource Muted}" FontSize="12" Margin="2,2,2,0" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding ScoreText}" FontSize="12" Margin="2,2,2,0" TextWrapping="Wrap"/>
+                                    <Border Background="{Binding LabelBackground}" CornerRadius="4" Padding="8,3" Margin="2,8,2,2" HorizontalAlignment="Left"
+                                            Cursor="Hand" MouseLeftButtonDown="OnPick" ToolTip="Quedarme con esta foto">
+                                        <TextBlock Text="{Binding Label}" FontSize="12" Foreground="{Binding LabelForeground}"/>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+
+        <Grid Grid.Row="2" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock x:Name="DetailText" Foreground="{DynamicResource Muted}" TextWrapping="Wrap"/>
+                <ProgressBar x:Name="Bar" Minimum="0" Maximum="100" Margin="0,6,12,0" Visibility="Collapsed"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button x:Name="ApplyAllButton" Content="Aplicar las recomendaciones a todos…" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0"
+                        Click="OnApplyAll" IsEnabled="False" AutomationProperties.AutomationId="DupApplyAll"/>
+                <Button x:Name="ApplyButton" Content="Apartar las demás de este grupo" Style="{StaticResource PrimaryButton}"
+                        Click="OnApplyGroup" IsEnabled="False" AutomationProperties.AutomationId="DupApplyGroup"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

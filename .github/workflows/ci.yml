@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    # WPF y WPD exigen Windows. No usa el SDK portable de la carpeta del proyecto: lo instala setup-dotnet.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      # Barandilla (ADR-0001): la app solo lee del dispositivo. Falla si reaparece código que borre o escriba en el iPhone.
+      - name: Comprobar que no hay borrado en el iPhone
+        shell: pwsh
+        run: |
+          $hits = git grep -I -nE "DeleteFile|DeleteDirectory|afc_remove_path|afc_rename_path|GenericWrite|GenericAll|Delete\(RemoteFile|SupportsDelete|CanDelete" -- "src/*.cs"
+          if ($hits) { $hits; Write-Error "Solo lectura del dispositivo (ADR-0001): retira ese código."; exit 1 }
+          "Sin código de borrado en el dispositivo."
+
+      - name: Compilar
+        run: dotnet build IPhonePhotos.sln -c Release
+
+      - name: Pruebas (sin las de rendimiento)
+        run: dotnet test tests/IPhonePhotos.Tests -c Release --no-build --filter "Category!=Perf"
+
+      - name: Paquetes con vulnerabilidades conocidas (informativo)
+        run: dotnet list IPhonePhotos.sln package --vulnerable --include-transitive

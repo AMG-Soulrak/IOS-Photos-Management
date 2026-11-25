@@ -1,0 +1,23 @@
+# SDK de .NET portable y caché de paquetes locales (solo en el PC de desarrollo; ver README.md «Compilar»)
+.dotnet*/
+.nuget/
+
+# Compilación
+bin/
+obj/
+# dist/: ejecutables e instaladores generados. No se versionan (se publican aparte, p. ej. en Releases).
+dist/*
+*.user
+.vs/
+
+# Modelos de caras: licencia no comercial, cada usuario los obtiene aparte (README.md)
+models/
+*.onnx
+
+# Ajustes y registros de ejecución local
+iphotos.settings.json
+iphotos-error.log
+informe-conexion.txt
+
+# Herramientas locales de agentes
+.claude-flow/
