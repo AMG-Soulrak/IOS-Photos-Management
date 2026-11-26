@@ -61,6 +61,6 @@ Medido con `dotnet test --filter Category=Perf` (datos sintéticos, PC de 24 hil
 - [ ] No hay pruebas automáticas de interfaz (filtros, multiselección, arrastre, Personas, Descartar, Repetidas).
 - [ ] Sin probar: iPhone real (WPD/AFC), copia de seguridad con datos reales, teclado real, modo oscuro, DPI, instalador, rutas > 260 caracteres, «Organizar por lugar» de principio a fin (con fotos con GPS), detección de documentos con fotos reales, bibliotecas de 5.000+ fotos reales.
 - [ ] Core depende de WPF (`UseWPF`). La regla «una operación a la vez» ya vive en Core (`LibraryGate`); en la interfaz solo quedan las dos líneas que piden el turno y muestran el mensaje en el estado de cada página (9 sitios). No se ha tocado en v1.7: juntarlas solo movería esas dos líneas.
-- [ ] Una ejecución de las pruebas (1 de 6) falló en `Deep_verification_catches_a_mismatch_with_the_device` y `Photo_already_in_the_library_without_a_manifest_record_is_not_downloaded` y pasó al repetir: prueba inestable sin diagnosticar.
+- [ ] Una ejecución de las pruebas (1 de 14 en la rama v1.7; 0 de 6 en v1.6) falló en `Deep_verification_catches_a_mismatch_with_the_device` y `Photo_already_in_the_library_without_a_manifest_record_is_not_downloaded` y pasó al repetir: prueba inestable sin diagnosticar.
 - [ ] Falta ADR-0001 y hay comentarios desactualizados.
 - [ ] «Organizar por lugar»: GeoNames `cities15000` incluye distritos (Barcelona sale como «Eixample»); valorar nombres de ciudad.
