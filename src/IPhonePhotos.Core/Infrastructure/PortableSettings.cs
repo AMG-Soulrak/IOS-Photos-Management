@@ -24,6 +24,9 @@ public sealed class PortableSettings
 
     public bool AllowSnapshotFallback { get; set; } = true;
 
+    /// <summary>Guardar también una copia JPG de cada HEIC al copiar (desactivado por defecto).</summary>
+    public bool AlsoJpg { get; set; }
+
     /// <summary>"" = igual que Windows; "light" o "dark".</summary>
     public string Theme { get; set; } = "";
 

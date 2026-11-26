@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using IPhonePhotos.Core;
 
@@ -87,6 +87,9 @@ public partial class ShellWindow : Window
         _download.Closed += (_, _) => { _download = null; _folder = LibraryFolder(); _ = ReloadAsync(); }; // puede haber fotos nuevas o otra carpeta
         _download.Show();
     }
+
+    private void OnConnectionHelp(object sender, RoutedEventArgs e)
+        => new ConnectionWindow(() => _download?.IsBusy == true) { Owner = this }.Show();
 
     private void OnOrganizeDate(object sender, RoutedEventArgs e) => Organize(OrganizeMode.ByDate);
     private void OnOrganizePlace(object sender, RoutedEventArgs e) => Organize(OrganizeMode.ByPlace);

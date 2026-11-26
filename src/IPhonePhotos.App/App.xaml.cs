@@ -12,6 +12,18 @@ public partial class App : Application
     public static string? DestArg { get; private set; }
     public static string? BackupFolderArg { get; private set; }
 
+    /// <summary>Técnicas de conexión: todas (el selector usa la mejor) o una carpeta local con --source-folder.</summary>
+    public static List<IPhonePhotos.Core.Backends.IDeviceBackendProvider> CreateProviders(bool includeBackup)
+    {
+        var providers = new List<IPhonePhotos.Core.Backends.IDeviceBackendProvider>();
+        if (!string.IsNullOrEmpty(SourceFolderArg)) { providers.Add(new IPhonePhotos.Core.Backends.LocalFolderProvider(SourceFolderArg)); return providers; }
+        providers.Add(new IPhonePhotos.Core.Backends.WpdProvider());
+        providers.Add(new IPhonePhotos.Core.Backends.AfcProvider());
+        if (includeBackup)
+            providers.Add(new IPhonePhotos.Core.Backends.BackupProvider(string.IsNullOrEmpty(BackupFolderArg) ? null : new[] { BackupFolderArg }));
+        return providers;
+    }
+
     protected override void OnStartup(StartupEventArgs e)
     {
         for (var i = 0; i < e.Args.Length - 1; i++)

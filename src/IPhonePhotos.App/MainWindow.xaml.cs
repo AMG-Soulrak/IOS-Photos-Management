@@ -1,12 +1,14 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using IPhonePhotos.Core;
 using IPhonePhotos.Core.Backends;
+using IPhonePhotos.Core.Connection;
 using IPhonePhotos.Core.Manifest;
 using IPhonePhotos.Core.Models;
 using IPhonePhotos.Core.Organize;
@@ -26,22 +28,19 @@ public partial class MainWindow : Window
     private IDisposable? _gate;
     private bool _busy;
     private bool _refreshing;
+    private bool _interrupted;
+
+    /// <summary>Hay una copia, comparación o verificación en curso (la ayuda de conexión no prueba el dispositivo mientras tanto).</summary>
+    public bool IsBusy => _busy;
+    private int _lastDone, _lastTotal;
     private IReadOnlyList<DeviceDescriptor> _devices = Array.Empty<DeviceDescriptor>();
 
     public MainWindow()
     {
         InitializeComponent();
 
-        var providers = new List<IDeviceBackendProvider>();
-        if (!string.IsNullOrEmpty(App.SourceFolderArg)) providers.Add(new LocalFolderProvider(App.SourceFolderArg));
-        else
-        {
-            // Todas las técnicas: el selector las prueba y usa la mejor; si una falla, pasa a la siguiente.
-            providers.Add(new WpdProvider());
-            providers.Add(new AfcProvider());
-            providers.Add(new BackupProvider(string.IsNullOrEmpty(App.BackupFolderArg) ? null : new[] { App.BackupFolderArg }));
-        }
-        _selector = new BackendSelector(providers, _log);
+        // Todas las técnicas: el selector las prueba y usa la mejor; si una falla, pasa a la siguiente.
+        _selector = new BackendSelector(App.CreateProviders(includeBackup: true), _log);
 
         LogList.ItemsSource = _logItems;
         _log.Entry += OnLogEntry;
@@ -53,6 +52,7 @@ public partial class MainWindow : Window
         SnapshotCheck.IsChecked = _settings.AllowSnapshotFallback;
         OrganizeCheck.IsChecked = _settings.OrganizeByDate;
         NewFolderCheck.IsChecked = _settings.UseNewFolder;
+        JpgCheck.IsChecked = _settings.AlsoJpg;
         TechniqueCombo.SelectedIndex = _settings.Technique switch { "wpd" => 1, "afc" => 2, "backup" => 3, _ => 0 };
 
         UpdateDriverBanner();
@@ -98,7 +98,7 @@ public partial class MainWindow : Window
             }
 
             DeviceHint.Text = found.Count == 0
-                ? "No se ve ningún dispositivo: usa un cable de datos, desbloquea el iPhone y pulsa «Confiar»."
+                ? "No se ve ningún dispositivo: usa un cable de datos, desbloquea el iPhone y pulsa «Confiar». Si sigue sin aparecer, pulsa «Ayuda de conexión»."
                 : $"{found.Count} dispositivo(s) disponible(s).";
             if (DeviceCombo.SelectedItem is DeviceDescriptor sel)
             {
@@ -120,15 +120,32 @@ public partial class MainWindow : Window
 
     private void OnSelectionChanged(object sender, RoutedEventArgs e) => UpdateButtons();
 
+    /// <summary>Tras la primera copia en esta carpeta, la acción por defecto es «Copiar solo lo nuevo» (lo ya copiado nunca se repite).</summary>
+    private void UpdateDownloadLabel()
+    {
+        if (_interrupted) { DownloadButton.Content = "Continuar"; return; }
+        var dest = DestBox.Text.Trim();
+        bool previous;
+        try { previous = dest.Length > 0 && CopyReport.HasPreviousCopy(Path.GetFullPath(dest)); } catch { previous = false; }
+        DownloadButton.Content = previous ? "Copiar solo lo nuevo" : "Descargar";
+        AutomationProperties.SetHelpText(DownloadButton, previous
+            ? "Ya hay una copia en esta carpeta: solo se copian las fotos que falten."
+            : "Copia todas las fotos y vídeos. Si se corta, continúa donde lo dejó.");
+    }
+
     // ------------------------------------------------------------------ Acciones
 
-    private async void OnDownload(object sender, RoutedEventArgs e)
+    private async void OnDownload(object sender, RoutedEventArgs e) => await RunDownloadAsync(null);
+
+    /// <param name="only">Si no es null, solo se reintentan esas rutas del dispositivo (lista «no copiados»).</param>
+    private async Task RunDownloadAsync(IReadOnlySet<string>? only)
     {
         if (!TryGetContext(out var device, out var options)) return;
+        options.OnlyPaths = only;
         SaveSettings();
         if (!BeginBusy("descargar")) return;
-        SummaryText.Text = "";
-        var started = DateTime.Now;
+        HideResult();
+        _lastDone = _lastTotal = 0;
         try
         {
             var progress = new Progress<TransferProgress>(OnProgress);
@@ -136,35 +153,109 @@ public partial class MainWindow : Window
             var summary = await Task.Run(() =>
                 new TransferSession(_selector, _log).RunAsync(device, options, progress, status, _cts!.Token));
 
-            StatusText.Text = summary.Failed == 0 ? "Copia terminada." : "Copia terminada con algunos errores.";
+            _interrupted = false;
+            StatusText.Text = summary.Failed == 0 ? "Copia terminada." : $"Copia terminada: {summary.Failed} archivo(s) no se pudieron copiar.";
             Bar.IsIndeterminate = false;
             Bar.Value = 100;
-            SummaryText.Text =
-                $"{summary.Copied} copiados ({Format.Bytes(summary.BytesCopied)}) · {summary.AlreadyDone} ya estaban" +
-                (summary.Adopted > 0 ? $" ({summary.Adopted} adoptados, sin verificar)" : "") + " · " +
-                $"{summary.Failed} con error · {summary.Reconnects} reconexiones · {Format.Duration(DateTime.Now - started)}" +
-                (summary.TechniquesUsed.Count > 0 ? $"\nTécnica(s): {string.Join(", ", summary.TechniquesUsed)}" : "") +
-                (summary.SnapshotWarning != null ? $"\nAVISO: {summary.SnapshotWarning}" : "") +
-                (summary.Failed > 0 ? "\nPulsa Descargar otra vez para reintentar los que fallaron." : "");
+            // El mismo texto que ultima-copia.txt (más la técnica, que solo se enseña aquí).
+            SummaryText.Text = (summary.ReportText ?? "").TrimEnd() +
+                               (summary.TechniquesUsed.Count > 0 ? $"\nTécnica(s): {string.Join(", ", summary.TechniquesUsed)}" : "");
+            AfterPanel.Visibility = Visibility.Visible;
+            ShowFailed(summary);
         }
         catch (OperationCanceledException)
         {
-            StatusText.Text = "Detenido. Lo copiado queda guardado: pulsa Descargar / Reanudar para continuar.";
-        }
-        catch (DeviceLostException ex)
-        {
-            StatusText.Text = ex.Message;
+            _interrupted = true;
+            StatusText.Text = Interrupted("Detenido.");
         }
         catch (Exception ex)
         {
-            StatusText.Text = "Error: " + ex.Message;
-            _log.Error(ex.Message);
+            if (ex is DeviceLostException) _interrupted = _lastTotal > 0;
+            if (_interrupted) StatusText.Text = Interrupted("La copia se ha cortado.");
+            ShowError(ex, () => RunDownloadAsync(only));
         }
         finally
         {
             EndBusy();
         }
     }
+
+    private string Interrupted(string what) =>
+        $"{what} Copiadas {_lastDone} de {_lastTotal} en esta tanda. Lo copiado queda guardado: pulsa «Continuar» y seguirá donde lo dejó.";
+
+    // ------------------------------------------------------------------ No copiados y errores
+
+    private sealed record FailedItem(string Path, string Reason)
+    {
+        public string RetryName => $"Reintentar {System.IO.Path.GetFileName(Path)}";
+    }
+
+    private void ShowFailed(TransferSummary summary)
+    {
+        var items = summary.FailedFiles
+            .Select(f => new FailedItem(f, summary.FailureReasons.TryGetValue(f, out var r) ? r : "Motivo desconocido"))
+            .ToList();
+        FailedList.ItemsSource = items;
+        FailedTitle.Text = $"No copiados ({items.Count}). El resto sí se copió.";
+        FailedPanel.Visibility = items.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private async void OnRetryOneFailed(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is FailedItem f)
+            await RunDownloadAsync(new HashSet<string>(new[] { f.Path }, StringComparer.OrdinalIgnoreCase));
+    }
+
+    private async void OnRetryAllFailed(object sender, RoutedEventArgs e)
+    {
+        if (FailedList.ItemsSource is IEnumerable<FailedItem> all)
+            await RunDownloadAsync(all.Select(f => f.Path).ToHashSet(StringComparer.OrdinalIgnoreCase));
+    }
+
+    private void OnVerifyDeepNow(object sender, RoutedEventArgs e)
+    {
+        VerifyDeepCheck.IsChecked = true;
+        OnVerify(sender, e);
+    }
+
+    private Func<Task>? _errorRetry;
+    private string? _errorRow;
+
+    /// <summary>Error en lenguaje llano: causa, acción, «Reintentar», «Ayuda de conexión» y lo técnico plegado en «Detalles».</summary>
+    private void ShowError(Exception ex, Func<Task> retry)
+    {
+        var e = ErrorExplainer.Explain(ex);
+        _log.Error(ex.Message);
+        _errorRetry = retry;
+        _errorRow = e.GuideRowId;
+        ErrorCause.Text = e.Cause;
+        ErrorAction.Text = e.Action;
+        ErrorDetails.Text = e.Details;
+        ErrorPanel.Visibility = Visibility.Visible;
+        if (!_interrupted) StatusText.Text = e.Cause;
+        AutomationProperties.SetName(ErrorPanel, $"Error: {e.Cause} {e.Action}");
+        ErrorRetry.Focus();
+    }
+
+    private void HideResult()
+    {
+        ErrorPanel.Visibility = Visibility.Collapsed;
+        AfterPanel.Visibility = Visibility.Collapsed;
+        FailedPanel.Visibility = Visibility.Collapsed;
+        SummaryText.Text = "";
+    }
+
+    private async void OnErrorRetry(object sender, RoutedEventArgs e)
+    {
+        ErrorPanel.Visibility = Visibility.Collapsed;
+        if (_errorRetry != null) await _errorRetry();
+    }
+
+    private void OnErrorHelp(object sender, RoutedEventArgs e) => OpenHelp(_errorRow);
+
+    private void OnConnectionHelp(object sender, RoutedEventArgs e) => OpenHelp(null);
+
+    private void OpenHelp(string? row) => new ConnectionWindow(() => _busy, row) { Owner = this }.Show();
 
     private void OnStop(object sender, RoutedEventArgs e)
     {
@@ -176,6 +267,7 @@ public partial class MainWindow : Window
     {
         if (!TryGetContext(out var device, out var options)) return;
         if (!BeginBusy("comparar")) return;
+        HideResult();
         Bar.IsIndeterminate = true;
         StatusText.Text = "Comparando el dispositivo con lo ya descargado…";
         try
@@ -200,7 +292,7 @@ public partial class MainWindow : Window
                 SummaryText.Text += "\nNo se ve ninguna foto: comprueba que el iPhone esté desbloqueado y que hayas pulsado «Confiar».";
         }
         catch (OperationCanceledException) { StatusText.Text = "Cancelado."; }
-        catch (Exception ex) { StatusText.Text = "Error: " + ex.Message; _log.Error(ex.Message); }
+        catch (Exception ex) { ShowError(ex, () => { OnCompare(this, new RoutedEventArgs()); return Task.CompletedTask; }); }
         finally
         {
             Bar.IsIndeterminate = false;
@@ -213,6 +305,7 @@ public partial class MainWindow : Window
         if (!TryGetContext(out var device, out var options)) return;
         SaveSettings();
         if (!BeginBusy("verificar")) return;
+        HideResult();
         var deep = VerifyDeepCheck.IsChecked == true;
         try
         {
@@ -242,11 +335,10 @@ public partial class MainWindow : Window
             if (local.Corrupt + local.MissingLocal > 0 || (deepResult?.Corrupt ?? 0) > 0)
                 SummaryText.Text += "\nLos que tienen problemas se volverán a descargar aparte al pulsar Descargar (el archivo dudoso no se toca).";
             // Sustituto del antiguo «Liberar espacio»: el informe dice qué está a salvo; borrar del iPhone lo decide el usuario en la app Fotos.
-            SummaryText.Text += "\nLa app no borra nada del iPhone. Antes de borrar a mano en Fotos, abre la carpeta y comprueba la copia.";
+            SummaryText.Text += "\n" + CopyReport.NeverDeletes + "\n" + CopyReport.ICloudDeleteWarning;
         }
         catch (OperationCanceledException) { StatusText.Text = "Cancelado."; }
-        catch (DeviceLostException ex) { StatusText.Text = ex.Message; }
-        catch (Exception ex) { StatusText.Text = "Error: " + ex.Message; _log.Error(ex.Message); }
+        catch (Exception ex) { ShowError(ex, () => { OnVerify(this, new RoutedEventArgs()); return Task.CompletedTask; }); }
         finally { EndBusy(); }
     }
 
@@ -295,12 +387,13 @@ public partial class MainWindow : Window
                    : p.FilesTotal > 0 ? p.FilesDone * 100.0 / p.FilesTotal : 0;
         Bar.Value = Math.Clamp(pct, 0, 100);
 
-        var verb = p.Phase switch { TransferPhase.Verifying => "Verificando",TransferPhase.Organizing => "Organizando", _ => "Descargando" };
+        var verb = p.Phase switch { TransferPhase.Verifying => "verificados", TransferPhase.Organizing => "organizados", _ => "copiados" };
+        if (p.Phase == TransferPhase.Downloading) { _lastDone = p.FilesDone; _lastTotal = p.FilesTotal; }
         var eta = "";
         if (p.Phase == TransferPhase.Downloading && p.BytesPerSecond > 0 && p.BytesTotal > p.BytesDone)
             eta = $" · quedan ~{Format.Duration(TimeSpan.FromSeconds((p.BytesTotal - p.BytesDone) / p.BytesPerSecond))}";
         var speed = p.BytesPerSecond > 0 ? $" · {Format.Bytes((long)p.BytesPerSecond)}/s" : "";
-        DetailText.Text = $"{verb}: {p.FilesDone} de {p.FilesTotal} archivos · {Format.Bytes(p.BytesDone)} de {Format.Bytes(p.BytesTotal)}{speed}{eta}";
+        DetailText.Text = $"{p.FilesDone} de {p.FilesTotal} {verb}{speed}{eta} · {Format.Bytes(p.BytesDone)} de {Format.Bytes(p.BytesTotal)}";
         CurrentText.Text = p.CurrentFile ?? "";
     }
 
@@ -351,6 +444,8 @@ public partial class MainWindow : Window
         DestBox.IsEnabled = !_busy;
         AdoptCombo.IsEnabled = !_busy;
         StopButton.IsEnabled = _busy && _cts != null;
+        JpgCheck.IsEnabled = !_busy;
+        UpdateDownloadLabel();
     }
 
     private bool TryGetContext(out DeviceDescriptor device, out TransferOptions options)
@@ -372,7 +467,8 @@ public partial class MainWindow : Window
             OnlyTechnique = SelectedTechnique(),
             OrganizeByDate = OrganizeCheck.IsChecked == true,
             NewFolder = NewFolderCheck.IsChecked == true ? AlbumService.InboxFolder : null,
-            AllowSnapshotFallback = SnapshotCheck.IsChecked == true
+            AllowSnapshotFallback = SnapshotCheck.IsChecked == true,
+            AlsoJpg = JpgCheck.IsChecked == true
         };
         return true;
     }
@@ -403,6 +499,7 @@ public partial class MainWindow : Window
         _settings.AllowSnapshotFallback = SnapshotCheck.IsChecked == true;
         _settings.OrganizeByDate = OrganizeCheck.IsChecked == true;
         _settings.UseNewFolder = NewFolderCheck.IsChecked == true;
+        _settings.AlsoJpg = JpgCheck.IsChecked == true;
         _settings.Save();
     }
 

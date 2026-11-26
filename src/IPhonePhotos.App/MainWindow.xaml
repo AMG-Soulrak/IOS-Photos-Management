@@ -13,6 +13,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Título grande, como en iOS -->
@@ -105,8 +106,12 @@
                               AutomationProperties.AutomationId="NewFolderCheck"/>
                     <Rectangle Style="{StaticResource Separator}"/>
                     <CheckBox x:Name="OrganizeCheck" Margin="16,11,16,11"
-                              Content="Si no usas «Nuevos»: guardar las fotos nuevas en carpetas Año\Mes (p. ej. 2024\03) en vez de DCIM\100APPLE"
+                              Content="Si no usas «Nuevos»: guardar las fotos nuevas en carpetas Año\Mes (p. ej. 2024\03) según su fecha de captura, en vez de DCIM\100APPLE"
                               AutomationProperties.AutomationId="OrganizeCheck"/>
+                    <Rectangle Style="{StaticResource Separator}"/>
+                    <CheckBox x:Name="JpgCheck" Margin="16,11,16,11"
+                              Content="Guardar también una copia JPG de cada foto HEIC (en la carpeta «… (JPG)» junto a la de destino; los originales no se tocan)"
+                              AutomationProperties.AutomationId="JpgCheck"/>
                 </StackPanel>
             </Border>
         </StackPanel>
@@ -126,7 +131,9 @@
                           AutomationProperties.AutomationId="VerifyDeepCheck"/>
             </Border>
             <Button x:Name="OpenButton" Content="Abrir carpeta" Style="{StaticResource SecondaryButton}"
-                    Margin="0,0,0,8" Click="OnOpenFolder" AutomationProperties.AutomationId="OpenButton"/>
+                    Margin="0,0,8,8" Click="OnOpenFolder" AutomationProperties.AutomationId="OpenButton"/>
+            <Button Content="Ayuda de conexión" Style="{StaticResource TextButton}" Margin="0,0,0,8" Click="OnConnectionHelp"
+                    AutomationProperties.Name="Ayuda de conexión: conectar tu iPhone o iPad" AutomationProperties.AutomationId="HelpButton"/>
         </WrapPanel>
 
         <!-- Progreso -->
@@ -143,11 +150,62 @@
                            TextTrimming="CharacterEllipsis"/>
                 <TextBlock x:Name="SummaryText" Style="{StaticResource AutoHide}" Margin="0,10,0,0" TextWrapping="Wrap"
                            AutomationProperties.AutomationId="SummaryText"/>
+                <!-- Tras la copia: qué hacer ahora -->
+                <WrapPanel x:Name="AfterPanel" Margin="0,10,0,0" Visibility="Collapsed">
+                    <Button Content="Verificar a fondo ahora" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" Click="OnVerifyDeepNow"
+                            AutomationProperties.AutomationId="VerifyDeepNow"/>
+                    <Button Content="Abrir carpeta" Style="{StaticResource SecondaryButton}" Click="OnOpenFolder"/>
+                </WrapPanel>
+                <!-- No copiados, con su motivo y reintento -->
+                <StackPanel x:Name="FailedPanel" Margin="0,12,0,0" Visibility="Collapsed">
+                    <Grid>
+                        <TextBlock x:Name="FailedTitle" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <Button Content="Reintentar todos" HorizontalAlignment="Right" Style="{StaticResource SecondaryButton}" Click="OnRetryAllFailed"
+                                AutomationProperties.AutomationId="RetryAllFailed"/>
+                    </Grid>
+                    <ItemsControl x:Name="FailedList" Margin="0,6,0,0" AutomationProperties.Name="Archivos no copiados">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Path}" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding Reason}" Foreground="{DynamicResource Muted}" FontSize="12"/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="Reintentar" Style="{StaticResource TextButton}" Click="OnRetryOneFailed"
+                                            AutomationProperties.Name="{Binding RetryName}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Error en lenguaje llano: una causa, una acción, Reintentar; lo técnico en «Detalles» -->
+        <Border x:Name="ErrorPanel" Grid.Row="5" Visibility="Collapsed" Background="{DynamicResource DangerTint}" CornerRadius="12"
+                Padding="18,14" Margin="0,0,0,16" AutomationProperties.AutomationId="ErrorPanel">
+            <StackPanel>
+                <TextBlock x:Name="ErrorCause" FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap"/>
+                <TextBlock x:Name="ErrorAction" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                <WrapPanel Margin="0,10,0,0">
+                    <Button x:Name="ErrorRetry" Content="Reintentar" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" Click="OnErrorRetry"
+                            AutomationProperties.AutomationId="ErrorRetry"/>
+                    <Button Content="Ayuda de conexión" Style="{StaticResource SecondaryButton}" Click="OnErrorHelp"
+                            AutomationProperties.AutomationId="ErrorHelp"/>
+                </WrapPanel>
+                <Expander Header="Detalles" Margin="0,10,0,0" AutomationProperties.Name="Detalles técnicos del error">
+                    <TextBox x:Name="ErrorDetails" IsReadOnly="True" TextWrapping="Wrap" FontFamily="Consolas" FontSize="12" Margin="0,6,0,0"
+                             AutomationProperties.Name="Detalles técnicos"/>
+                </Expander>
             </StackPanel>
         </Border>
 
         <!-- Registro -->
-        <Grid Grid.Row="5">
+        <Grid Grid.Row="6">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
