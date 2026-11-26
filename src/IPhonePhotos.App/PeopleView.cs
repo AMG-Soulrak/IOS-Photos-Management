@@ -248,5 +248,6 @@ public sealed class PeopleView : UserControl
         finally { _busy = false; }
         await ShowGroupsAsync();
         if (outcome != null) _status.Text = outcome;
+        if (FaceModels.Notice != null) { _status.Text += " " + FaceModels.Notice; _log.Warn(FaceModels.Notice); }
     }
 }
