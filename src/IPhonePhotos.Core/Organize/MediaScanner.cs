@@ -1,3 +1,5 @@
+using System.IO.Enumeration;
+
 namespace IPhonePhotos.Core.Organize;
 
 /// <summary>Un archivo multimedia que ya está en el PC. La fecha es la del archivo (la que ve el Explorador).</summary>
@@ -45,7 +47,14 @@ public static class MediaScanner
         if (!Directory.Exists(root)) return result;
 
         var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true };
-        foreach (var fi in new DirectoryInfo(root).EnumerateFiles("*", options))
+        // No se entra en carpetas que son enlaces (junction/symlink): llevarían fuera de la biblioteca y «Organizar» movería fotos ajenas.
+        // Los archivos con atributo de reparse (p. ej. OneDrive «solo en la nube») sí se listan.
+        var files = new FileSystemEnumerable<FileInfo>(root, (ref FileSystemEntry e) => (FileInfo)e.ToFileSystemInfo(), options)
+        {
+            ShouldIncludePredicate = (ref FileSystemEntry e) => !e.IsDirectory,
+            ShouldRecursePredicate = (ref FileSystemEntry e) => (e.Attributes & FileAttributes.ReparsePoint) == 0,
+        };
+        foreach (var fi in files)
         {
             ct.ThrowIfCancellationRequested();
             if (!IsMedia(fi.Name)) continue;

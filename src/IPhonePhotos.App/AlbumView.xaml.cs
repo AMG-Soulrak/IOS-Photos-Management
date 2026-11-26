@@ -95,8 +95,10 @@ public partial class AlbumView : UserControl
 
     private void ShowSelection()
     {
-        if (_sel.Count > 0) StatusText.Text = $"{_sel.Count} fotos seleccionadas: arrástralas a un álbum (Mayús + clic marca un rango, Ctrl + A todas).";
+        if (_sel.Count > 0) StatusText.Text = $"{N(_sel.Count, "foto seleccionada", "fotos seleccionadas")}: arrástralas a un álbum (Mayús + clic marca un rango, Ctrl + A todas).";
     }
+
+    private static string N(int n, string one, string many) => n == 1 ? $"1 {one}" : $"{n} {many}";
 
     /// <summary>Se avisa cada vez que se vuelven a leer las fotos (para que las demás páginas no trabajen con datos viejos).</summary>
     public event Action? DataLoaded;
@@ -110,7 +112,7 @@ public partial class AlbumView : UserControl
         if (items.Count == 0) { StatusText.Text = "Selecciona primero las fotos que quieras descartar."; return; }
         if (_busy) return;
         if (MessageBox.Show(Window.GetWindow(this),
-                $"Se van a apartar {items.Count} fotos ({Format.Bytes(items.Sum(i => i.Media.Size))}) a «{DiscardService.Folder}» y dejarán de salir en el álbum.\n\n" +
+                $"Se van a apartar {N(items.Count, "foto", "fotos")} ({Format.Bytes(items.Sum(i => i.Media.Size))}) a «{DiscardService.Folder}» y dejarán de salir en el álbum.\n\n" +
                 "No se borra nada: puedes recuperarlas de esa carpeta, o vaciarla tú cuando estés seguro. ¿Continuar?",
                 "Descartar fotos", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         using var gate = LibraryGate.TryEnter("descartar fotos");
@@ -130,7 +132,7 @@ public partial class AlbumView : UserControl
                 return new DiscardService(_log).SetAside(folder, store, items, null, CancellationToken.None);
             });
             await LoadAsync(_folder);
-            StatusText.Text = $"Apartadas {items.Count} fotos a «{DiscardService.Folder}»." + (result.Failed.Count > 0 ? $" {result.Failed.Count} con error (mira el registro)." : "");
+            StatusText.Text = $"{N(items.Count, "foto apartada", "fotos apartadas")} a «{DiscardService.Folder}»." + (result.Failed.Count > 0 ? $" {result.Failed.Count} con error (mira el registro)." : "");
         }
         catch (Exception ex)
         {
@@ -212,7 +214,7 @@ public partial class AlbumView : UserControl
         GroupList.ItemsSource = _groups.Select(g => $"{g.Name}  ·  {g.Items.Count}").ToList();
         RefreshAlbums();
         var noGps = shown.Count(i => i.Lat == null);
-        StatusText.Text = $"{shown.Count} fotos en {_groups.Count} grupos" +
+        StatusText.Text = $"{N(shown.Count, "foto", "fotos")} en {N(_groups.Count, "grupo", "grupos")}" +
                           (noGps > 0 ? $"; {noGps} sin GPS" : "") +
                           (_data.VideosAndOthers > 0 ? $". {_data.VideosAndOthers} vídeos y otros archivos no se muestran." : ".");
 
@@ -464,7 +466,7 @@ public partial class AlbumView : UserControl
         var items = dragged
             .Where(i => !i.Media.RelativePath.StartsWith(inAlbum, StringComparison.OrdinalIgnoreCase)).ToList();
         if (items.Count == 0) { StatusText.Text = $"Esas fotos ya están en «{album.Name}»."; return; }
-        await MoveAsync(items, album.Name, $"{items.Count} fotos añadidas al álbum «{album.Name}».");
+        await MoveAsync(items, album.Name, $"{N(items.Count, "foto añadida", "fotos añadidas")} al álbum «{album.Name}».");
     }
 
     private async void OnRemoveFromAlbum(object sender, RoutedEventArgs e)
@@ -473,7 +475,7 @@ public partial class AlbumView : UserControl
         var items = SelectedItems
             .Where(i => i.Media.RelativePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToList();
         if (items.Count == 0) { StatusText.Text = "Esas fotos no están en un álbum propio."; return; }
-        await MoveAsync(items, null, $"{items.Count} fotos devueltas a su carpeta por fecha.");
+        await MoveAsync(items, null, $"{N(items.Count, "foto devuelta", "fotos devueltas")} a su carpeta por fecha.");
     }
 
     private async Task MoveAsync(List<AlbumItem> items, string? album, string done)

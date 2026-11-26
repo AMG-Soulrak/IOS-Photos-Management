@@ -27,15 +27,29 @@ public sealed class AlbumService
             ? Directory.EnumerateDirectories(AlbumsPath(root)).Select(d => Path.GetFileName(d)!).OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase).ToList()
             : new List<string>();
 
+    private const int MaxNameLength = 100;
+
     public static string Clean(string name)
-        => string.Concat(name.Trim().Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Trim().TrimEnd('.');
+    {
+        var clean = string.Concat(name.Trim().Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Trim().TrimEnd('.');
+        if (clean.Length > MaxNameLength) clean = clean[..MaxNameLength].TrimEnd().TrimEnd('.');
+        // Nombres que Windows reserva para dispositivos (CON, NUL, COM1…): con o sin extensión no se pueden usar como carpeta.
+        var stem = clean.Split('.')[0].TrimEnd();
+        if (System.Text.RegularExpressions.Regex.IsMatch(stem, @"^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            clean += "_";
+        return clean;
+    }
 
     /// <summary>Crea el álbum (la carpeta) y devuelve su nombre ya limpio. Si ya existe, no hace nada más.</summary>
     public static string Create(string root, string name)
     {
         var clean = Clean(name);
         if (clean.Length == 0) throw new ArgumentException("Escribe un nombre para el álbum.");
-        Directory.CreateDirectory(Path.Combine(AlbumsPath(root), clean));
+        try { Directory.CreateDirectory(Path.Combine(AlbumsPath(root), clean)); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            throw new IOException($"No se pudo crear el álbum «{clean}»: {ex.Message}", ex);
+        }
         return clean;
     }
 
@@ -54,13 +68,21 @@ public sealed class AlbumService
         var onlyCase = string.Equals(oldName, clean, StringComparison.OrdinalIgnoreCase);
         if (!onlyCase && Directory.Exists(to)) throw new IOException($"Ya existe un álbum llamado «{clean}».");
 
-        if (onlyCase) // en Windows, cambiar solo mayúsculas/minúsculas exige pasar por un nombre intermedio
+        try
         {
-            var tmp = from + ".renombrando";
-            Directory.Move(from, tmp);
-            Directory.Move(tmp, to);
+            if (onlyCase) // en Windows, cambiar solo mayúsculas/minúsculas exige pasar por un nombre intermedio
+            {
+                var tmp = from + ".renombrando";
+                Directory.Move(from, tmp);
+                try { Directory.Move(tmp, to); }
+                catch { Directory.Move(tmp, from); throw; } // que no quede el álbum con el nombre provisional
+            }
+            else Directory.Move(from, to);
         }
-        else Directory.Move(from, to);
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new IOException($"No se pudo renombrar «{oldName}»: alguna foto del álbum está abierta en otro programa o el Explorador está dentro de la carpeta. Ciérralo e inténtalo de nuevo.", ex);
+        }
 
         if (store != null)
         {

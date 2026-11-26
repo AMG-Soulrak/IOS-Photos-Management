@@ -40,8 +40,8 @@
             <StackPanel>
                 <TextBlock Text="Álbum" Style="{StaticResource LargeTitle}"/>
                 <TextBlock x:Name="StatusText" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,2,12,0"
-                           Text="Cargando…" AutomationProperties.AutomationId="AlbumStatus"/>
-                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                           Text="Cargando…" AutomationProperties.AutomationId="AlbumStatus" AutomationProperties.LiveSetting="Polite"/>
+                <WrapPanel Margin="0,4,0,0">
                     <Button x:Name="SelectAllButton" Content="Seleccionar todas" Style="{StaticResource TextButton}" Padding="0,3,12,3"
                             Click="OnSelectAll" AutomationProperties.AutomationId="AlbumSelectAll"/>
                     <Button Content="Quitar selección" Style="{StaticResource TextButton}" Padding="0,3,12,3"
@@ -49,7 +49,7 @@
                     <Button x:Name="DiscardButton" Content="Descartar las seleccionadas…" Style="{StaticResource TextButton}" Padding="0,3,12,3"
                             Click="OnDiscardSelected" AutomationProperties.AutomationId="AlbumDiscard"
                             ToolTip="Las aparta a la carpeta «_Descartadas» (no se borran)"/>
-                </StackPanel>
+                </WrapPanel>
             </StackPanel>
             <ComboBox x:Name="AlbumFilter" AutomationProperties.Name="Filtrar fotos" Grid.Column="1" VerticalAlignment="Top" Width="170" Margin="0,0,8,0" SelectedIndex="0"
                       ToolTip="Filtra las fotos según estén o no en un álbum" AutomationProperties.AutomationId="AlbumFilter">
@@ -134,7 +134,7 @@
                                         PreviewMouseLeftButtonDown="OnThumbDown" PreviewMouseMove="OnThumbMove"
                                         PreviewMouseLeftButtonUp="OnThumbUp" PreviewMouseRightButtonDown="OnThumbRightClick">
                                     <Grid>
-                                        <Image Source="{Binding Source}" Stretch="UniformToFill"/>
+                                        <Image Source="{Binding Source}" Stretch="UniformToFill" AutomationProperties.Name="{Binding A11yName}"/>
                                         <Border Background="{Binding WhereBack}" VerticalAlignment="Bottom" Padding="6,2" IsHitTestVisible="False">
                                             <TextBlock Text="{Binding Where}" Foreground="White" FontSize="10" TextTrimming="CharacterEllipsis"/>
                                         </Border>

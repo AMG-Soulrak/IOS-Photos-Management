@@ -45,15 +45,23 @@ public static class ThumbLoader
     private static readonly SemaphoreSlim Gate = new(4);
 
     /// <summary>Decodifica la miniatura (como mucho 4 a la vez) y la pone en <paramref name="target"/>.</summary>
-    public static async Task LoadAsync(Thumb target, CancellationToken ct, int width = 300)
+    public static async Task LoadAsync(Thumb target, CancellationToken ct, int width = 0)
     {
         try
         {
+            if (width <= 0) width = GridWidth(); // en la UI: la cuadrícula muestra 150 px independientes de la densidad, no hace falta más
             await Gate.WaitAsync(ct);
             try { target.Source = await Task.Run(() => Decode(target.Path, width), ct); }
             finally { Gate.Release(); }
         }
         catch (OperationCanceledException) { }
+    }
+
+    /// <summary>Ancho de decodificación de la cuadrícula: lo justo para 150 px con la escala de pantalla actual (a 100 % ≈ 4 veces menos memoria que 300).</summary>
+    private static int GridWidth()
+    {
+        try { return (int)Math.Clamp(Math.Ceiling(150 * VisualTreeHelper.GetDpi(Application.Current.MainWindow).DpiScaleX), 160, 300); }
+        catch { return 300; }
     }
 
     public static BitmapImage? Decode(string path, int width)

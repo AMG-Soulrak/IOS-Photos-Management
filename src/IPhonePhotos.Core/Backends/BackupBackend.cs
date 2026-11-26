@@ -121,6 +121,18 @@ public sealed class BackupBackend : IDeviceBackend
         var dbPath = Path.Combine(_folder, "Manifest.db");
         _db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = dbPath, Mode = SqliteOpenMode.ReadOnly }.ToString());
         _db.Open();
+        // Manifest.db viene de una copia que puede no ser de fiar: sin funciones de esquema y «Files» tiene que ser una tabla real
+        // (una vista podría inventar filas o ejecutar funciones al leerse).
+        using (var pragma = _db.CreateCommand()) { pragma.CommandText = "PRAGMA trusted_schema = OFF"; pragma.ExecuteNonQuery(); }
+        using (var check = _db.CreateCommand())
+        {
+            check.CommandText = "SELECT type FROM sqlite_master WHERE name = 'Files'";
+            if (!string.Equals(check.ExecuteScalar() as string, "table", StringComparison.Ordinal))
+            {
+                _db.Dispose();
+                throw new InvalidDataException("La copia de seguridad no es válida: Manifest.db no tiene la tabla «Files».");
+            }
+        }
     }
 
     public DeviceDescriptor Device { get; }

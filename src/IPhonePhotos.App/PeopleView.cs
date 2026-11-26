@@ -199,9 +199,9 @@ public sealed class PeopleView : UserControl
     {
         if (_busy || string.IsNullOrEmpty(_root)) return;
         if (MessageBox.Show(Window.GetWindow(this),
-                "Se borrarán las caras, huellas, retratos y nombres de Personas de esta carpeta de fotos, y Personas quedará desactivado.\n\n" +
+                "Se borrarán las caras, huellas, retratos y nombres de Personas de esta carpeta de fotos, y Personas quedará desactivado para todas tus carpetas (los datos de otras carpetas no se borran).\n\n" +
                 "Las fotos no se tocan. No se puede deshacer. ¿Borrar?",
-                "Borrar los datos de Personas", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                "Borrar los datos de Personas", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
         try
         {
             var root = _root;

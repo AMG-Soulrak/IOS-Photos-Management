@@ -87,6 +87,8 @@ public sealed class DuplicateService
 
     private static void AnalyzeFaces(string root, List<DupPhoto> photos, IProgress<(int Done, int Total)>? progress, CancellationToken ct)
     {
+        // Las caras son datos biométricos: sin el consentimiento de «Personas» no se analiza nada ni se escribe faces.json.
+        if (!PeopleService.IsEnabled) { FacesAvailable = false; return; }
         using var analyzer = FaceAnalyzer.TryCreate();
         FacesAvailable = analyzer != null;
         if (analyzer == null || photos.Count == 0) return;
@@ -103,6 +105,8 @@ public sealed class DuplicateService
 
         var done = 0;
         var changed = false;
+        try
+        {
         Parallel.ForEach(photos, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct }, p =>
         {
             var key = Key(p.Item.Media);
@@ -115,7 +119,9 @@ public sealed class DuplicateService
             var n = Interlocked.Increment(ref done);
             if (n % 10 == 0) progress?.Report((n, photos.Count));
         });
-
+        }
+        finally // al cancelar se conserva lo ya analizado
+        {
         if (changed)
             try
             {
@@ -123,6 +129,7 @@ public sealed class DuplicateService
                 File.WriteAllText(cachePath, JsonSerializer.Serialize(cache));
             }
             catch { /* sin caché solo es más lento */ }
+        }
     }
 
     /// <summary>
@@ -230,6 +237,8 @@ public sealed class DuplicateService
         var result = new ConcurrentDictionary<string, FrameStats>(StringComparer.OrdinalIgnoreCase);
         var done = 0;
         var changed = false;
+        try
+        {
         Parallel.ForEach(items, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct }, item =>
         {
             var key = Key(item.Media);
@@ -242,7 +251,9 @@ public sealed class DuplicateService
             var n = Interlocked.Increment(ref done);
             if (n % 25 == 0) progress?.Report((n, items.Count));
         });
-
+        }
+        finally // al cancelar se conserva lo ya calculado
+        {
         if (changed)
             try
             {
@@ -250,6 +261,7 @@ public sealed class DuplicateService
                 File.WriteAllText(cachePath, JsonSerializer.Serialize(cache));
             }
             catch { /* sin caché solo es más lento */ }
+        }
         return new Dictionary<string, FrameStats>(result, StringComparer.OrdinalIgnoreCase);
     }
 

@@ -404,5 +404,7 @@ public static class PeopleService
     {
         if (Directory.Exists(Folder(root))) Directory.Delete(Folder(root), recursive: true);
         if (Directory.Exists(LegacyFolder(root))) Directory.Delete(LegacyFolder(root), recursive: true);
+        var faces = Path.Combine(ManifestStore.MetaFolder(root), "faces.json"); // análisis de caras de «Fotos repetidas»
+        if (File.Exists(faces)) File.Delete(faces);
     }
 }

@@ -46,9 +46,20 @@ public static class PlistReader
             return BigEndian(d, (int)(offsetTable + index * offsetSize), offsetSize);
         }
 
+        // Un objeto referenciado varias veces se lee una sola vez: sin esto, referencias compartidas anidadas crecen de forma exponencial.
+        var memo = new Dictionary<long, object?>();
+
         object? Read(long index, int depth)
         {
             if (depth > 64) throw new FormatException("Plist demasiado anidado.");
+            if (memo.TryGetValue(index, out var cached)) return cached;
+            var value = ReadUncached(index, depth);
+            memo[index] = value;
+            return value;
+        }
+
+        object? ReadUncached(long index, int depth)
+        {
             var pos = (int)OffsetOf(index);
             var marker = d[pos];
             var type = marker >> 4;
@@ -60,7 +71,9 @@ public static class PlistReader
                 if (info != 0x0F) return (info, 1);
                 var m2 = d[pos + 1];
                 var n = 1 << (m2 & 0x0F);
-                return ((int)BigEndian(d, pos + 2, n), 2 + n);
+                var count = BigEndian(d, pos + 2, n);
+                if (count < 0 || count > d.Length) throw new FormatException("Longitud no válida en el plist.");
+                return ((int)count, 2 + n);
             }
 
             switch (type)
@@ -128,7 +141,11 @@ public static class PlistReader
             }
         }
 
-        return Read(top, 0);
+        try { return Read(top, 0); }
+        catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentException or OverflowException)
+        {
+            throw new FormatException("Plist binario dañado.", ex); // un archivo recortado o manipulado no debe tumbar el programa
+        }
     }
 
     private static long BigEndian(byte[] d, int pos, int n)

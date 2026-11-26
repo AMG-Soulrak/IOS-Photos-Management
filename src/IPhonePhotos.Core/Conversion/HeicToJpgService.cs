@@ -53,7 +53,7 @@ public sealed class HeicToJpgService
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
-                failed.Add($"{Path.GetRelativePath(source, src)}: {ex.Message}");
+                failed.Add($"{Path.GetRelativePath(source, src)}: no se pudo leer (¿archivo dañado o falta la extensión de imágenes HEIF de Windows?) [{ex.Message}]");
                 _log.Warn($"No se pudo convertir {src}: {ex.Message}");
                 try { File.Delete(dest + ".tmp"); } catch { }
             }

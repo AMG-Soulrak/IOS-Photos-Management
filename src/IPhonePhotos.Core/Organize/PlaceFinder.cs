@@ -15,6 +15,7 @@ public sealed class PlaceFinder
 {
     public const double MaxKm = 50;
     public const string DownloadUrl = "https://download.geonames.org/export/dump/cities15000.zip";
+    private const long MaxDownloadBytes = 20 * 1024 * 1024, MaxUnzippedBytes = 100 * 1024 * 1024; // el real: ≈2 MB y ≈8 MB
     private const string EntryName = "cities15000.txt";
 
     private readonly Dictionary<(int, int), List<(double Lat, double Lon, string Name)>> _grid = new();
@@ -43,16 +44,19 @@ public sealed class PlaceFinder
     {
         var target = DataPath(root);
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
+        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2), MaxResponseContentBufferSize = MaxDownloadBytes };
         await using var zip = new MemoryStream(await http.GetByteArrayAsync(DownloadUrl, ct));
         using var archive = new ZipArchive(zip);
         var entry = archive.GetEntry(EntryName) ?? throw new InvalidDataException($"El archivo descargado no contiene {EntryName}.");
+        if (entry.Length > MaxUnzippedBytes) throw new InvalidDataException("El archivo descargado es mucho mayor de lo esperado; se descarta.");
         var tmp = target + ".tmp";
         await using (var input = entry.Open())
         await using (var output = File.Create(tmp))
             await input.CopyToAsync(output, ct);
         File.Move(tmp, target, overwrite: true);
     }
+
+    private static int WrapLon(int cell) => cell > 179 ? cell - 360 : cell < -180 ? cell + 360 : cell;
 
     /// <summary>Nombre de la ciudad más cercana, o null si no hay ninguna a menos de <see cref="MaxKm"/>.</summary>
     public string? Find(double lat, double lon)
@@ -62,7 +66,7 @@ public sealed class PlaceFinder
         var (cy, cx) = ((int)Math.Floor(lat), (int)Math.Floor(lon));
         for (var dy = -1; dy <= 1; dy++)
             for (var dx = -1; dx <= 1; dx++)
-                if (_grid.TryGetValue((cy + dy, cx + dx), out var list))
+                if (_grid.TryGetValue((cy + dy, WrapLon(cx + dx)), out var list))
                     foreach (var (la, lo, name) in list)
                     {
                         var km = Haversine(lat, lon, la, lo);
