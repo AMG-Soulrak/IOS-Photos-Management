@@ -44,7 +44,8 @@ public partial class App : Application
         {
             var exe = Environment.ProcessPath ?? AppContext.BaseDirectory;
             var path = Path.Combine(Path.GetDirectoryName(exe)!, "iphotos-error.log");
-            File.AppendAllText(path, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\n{e.Exception}\n\n");
+            // Sin la carpeta del perfil ni el nombre de usuario: este archivo se suele enviar al pedir ayuda.
+            File.AppendAllText(path, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\n{LogPrivacy.Anonymize(e.Exception.ToString())}\n\n");
         }
         catch { /* sin permiso de escritura: se muestra igualmente */ }
 

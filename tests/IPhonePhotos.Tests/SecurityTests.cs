@@ -160,6 +160,17 @@ public class SecurityTests
         finally { IPhonePhotos.Core.Organize.FaceModels.Folder = old; }
     }
 
+    [Fact]
+    public void Error_log_text_has_no_profile_folder_or_user_name()
+    {
+        var text = "IOException: C:\\Users\\María López\\Pictures\\x.jpg · C:\\Users\\MARIAL~1\\AppData\\Local\\Temp\\.net\\a · usuario María López";
+        var safe = LogPrivacy.Anonymize(text, "C:\\Users\\MARIAL~1\\AppData\\Local\\Temp\\", "C:\\Users\\María López", "María López");
+        Assert.DoesNotContain("María", safe);
+        Assert.DoesNotContain("MARIAL~1", safe);
+        Assert.Contains("%USERPROFILE%\\Pictures\\x.jpg", safe);
+        Assert.Contains("%TEMP%\\.net", safe);
+    }
+
     private static void CopyDir(string from, string to)
     {
         foreach (var f in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))
