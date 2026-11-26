@@ -32,5 +32,13 @@ jobs:
       - name: Pruebas (sin las de rendimiento)
         run: dotnet test tests/IPhonePhotos.Tests -c Release --no-build --filter "Category!=Perf"
 
-      - name: Paquetes con vulnerabilidades conocidas (informativo)
-        run: dotnet list IPhonePhotos.sln package --vulnerable --include-transitive
+      # Falla si hay paquetes con avisos de seguridad (directos o transitivos). dotnet list sale con 0 aunque los haya,
+      # así que se mira la salida; también falla si la consulta no se pudo hacer (sin fuente de avisos).
+      - name: Paquetes con vulnerabilidades conocidas
+        shell: pwsh
+        run: |
+          $out = dotnet list IPhonePhotos.sln package --vulnerable --include-transitive 2>&1 | Out-String
+          $out
+          if ($LASTEXITCODE -ne 0) { Write-Error "No se pudo comprobar las vulnerabilidades."; exit 1 }
+          if ($out -match "(?im)has the following vulnerable packages|tiene los siguientes paquetes vulnerables|^\s*>\s") {
+            Write-Error "Hay paquetes con vulnerabilidades conocidas: actualízalos."; exit 1 }
