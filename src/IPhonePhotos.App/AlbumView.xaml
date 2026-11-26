@@ -46,6 +46,9 @@
                             Click="OnSelectAll" AutomationProperties.AutomationId="AlbumSelectAll"/>
                     <Button Content="Quitar selección" Style="{StaticResource TextButton}" Padding="0,3,12,3"
                             Click="OnSelectNone" AutomationProperties.AutomationId="AlbumSelectNone"/>
+                    <Button x:Name="MoveButton" Content="Mover a álbum…" Style="{StaticResource TextButton}" Padding="0,3,12,3"
+                            Click="OnMoveToAlbum" AutomationProperties.AutomationId="AlbumMoveTo"
+                            ToolTip="Mueve las fotos marcadas a uno de tus álbumes (lo mismo que arrastrarlas)"/>
                     <Button x:Name="DiscardButton" Content="Descartar las seleccionadas…" Style="{StaticResource TextButton}" Padding="0,3,12,3"
                             Click="OnDiscardSelected" AutomationProperties.AutomationId="AlbumDiscard"
                             ToolTip="Las aparta a la carpeta «_Descartadas» (no se borran)"/>
@@ -96,7 +99,7 @@
                         <ListBox x:Name="AlbumList" AutomationProperties.Name="Álbumes" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" Background="Transparent" BorderThickness="0"
                                  SelectionChanged="OnAlbumSelected" AllowDrop="True"
                                  DragOver="OnAlbumDragOver" DragLeave="OnAlbumDragLeave" Drop="OnAlbumDrop"
-                                 PreviewMouseRightButtonDown="OnAlbumRightClick" AutomationProperties.AutomationId="AlbumList">
+                                 PreviewMouseRightButtonDown="OnAlbumRightClick" PreviewKeyDown="OnAlbumKey" AutomationProperties.AutomationId="AlbumList">
                             <ListBox.ItemContainerStyle>
                                 <Style TargetType="ListBoxItem" BasedOn="{StaticResource RowItem}">
                                 </Style>
@@ -127,20 +130,37 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border x:Name="Root" Width="150" Height="150" Margin="3" Background="#10808080" CornerRadius="6" ClipToBounds="True"
-                                        BorderThickness="3" BorderBrush="{Binding Outline}"
+                                        BorderThickness="3"
                                         ToolTip="{Binding Tip}" Cursor="Hand"
                                         Focusable="True" FocusVisualStyle="{StaticResource FocusRing}" KeyDown="OnThumbKey"
                                         AutomationProperties.Name="{Binding A11yName}"
                                         PreviewMouseLeftButtonDown="OnThumbDown" PreviewMouseMove="OnThumbMove"
                                         PreviewMouseLeftButtonUp="OnThumbUp" PreviewMouseRightButtonDown="OnThumbRightClick">
+                                    <!-- Marcada: borde del color de acento del modo (claro u oscuro) y, además, una marca ✓ (no solo color) -->
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="BorderBrush" Value="Transparent"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Selected}" Value="True">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <Grid>
                                         <Image Source="{Binding Source}" Stretch="UniformToFill" AutomationProperties.Name="{Binding A11yName}"/>
                                         <Border Background="{Binding WhereBack}" VerticalAlignment="Bottom" Padding="6,2" IsHitTestVisible="False">
-                                            <TextBlock Text="{Binding Where}" Foreground="White" FontSize="10" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding Where}" Foreground="White" FontSize="12" TextTrimming="CharacterEllipsis"/>
                                         </Border>
                                         <Border Visibility="{Binding LiveVisibility}" Background="#99000000" CornerRadius="4" Padding="5,1"
                                                 HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6">
-                                            <TextBlock Text="LIVE" Foreground="White" FontSize="10" FontWeight="SemiBold"/>
+                                            <TextBlock Text="LIVE" Foreground="White" FontSize="12" FontWeight="SemiBold"/>
+                                        </Border>
+                                        <Border Visibility="{Binding CheckVisibility}" Background="{DynamicResource Accent}" BorderBrush="{DynamicResource OnAccent}"
+                                                BorderThickness="2" CornerRadius="12" Width="24" Height="24" Margin="0,6,44,0"
+                                                HorizontalAlignment="Right" VerticalAlignment="Top" IsHitTestVisible="False">
+                                            <TextBlock Text="&#xE73E;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource OnAccent}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
                                         <!-- Ampliar: solo abre la vista grande; el clic en la miniatura sigue seleccionando -->
                                         <Button Click="OnThumbExpand" AutomationProperties.Name="{Binding ExpandName}">
@@ -164,6 +184,7 @@
             </ScrollViewer>
         </Grid>
 
-        <ProgressBar x:Name="Bar" Grid.Row="3" Minimum="0" Maximum="100" Margin="0,10,0,0" Visibility="Collapsed"/>
+        <ProgressBar x:Name="Bar" Grid.Row="3" Minimum="0" Maximum="100" Margin="0,10,0,0" Visibility="Collapsed"
+                     AutomationProperties.Name="Progreso del álbum"/>
     </Grid>
 </UserControl>

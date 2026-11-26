@@ -18,8 +18,6 @@ public sealed class Thumb : INotifyPropertyChanged
     public string Where { get; init; } = "";
     public Brush WhereBack { get; init; } = Brushes.Transparent;
     private bool _selected;
-    private static readonly Brush AccentBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x00, 0x5F, 0xB8)));
-    private static Brush Freeze(Brush b) { b.Freeze(); return b; }
     /// <summary>Marcada para arrastrarla a un álbum o quitarla de él.</summary>
     public bool Selected
     {
@@ -28,12 +26,13 @@ public sealed class Thumb : INotifyPropertyChanged
         {
             _selected = value;
             PropertyChanged?.Invoke(this, new(nameof(Selected)));
-            PropertyChanged?.Invoke(this, new(nameof(Outline)));
+            PropertyChanged?.Invoke(this, new(nameof(CheckVisibility)));
             PropertyChanged?.Invoke(this, new(nameof(A11yName)));
         }
     }
-    public Brush Outline => _selected ? AccentBrush : Brushes.Transparent;
-    /// <summary>Lo que lee el lector de pantalla: la foto y si está marcada (la marca solo se ve por el color del borde).</summary>
+    /// <summary>Marca ✓ visible de las fotos marcadas (además del borde de color).</summary>
+    public Visibility CheckVisibility => _selected ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>Lo que lee el lector de pantalla: la foto y si está marcada.</summary>
     public string A11yName => (string.IsNullOrEmpty(Tip) ? System.IO.Path.GetFileName(Relative) : Tip) + (_selected ? ", marcada" : "");
     /// <summary>Nombre del botón de ampliar para el lector de pantalla.</summary>
     public string ExpandName => "Ampliar foto " + System.IO.Path.GetFileName(string.IsNullOrEmpty(Relative) ? Path : Relative);

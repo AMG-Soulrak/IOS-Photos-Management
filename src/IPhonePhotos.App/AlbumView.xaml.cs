@@ -96,7 +96,7 @@ public partial class AlbumView : UserControl
 
     private void ShowSelection()
     {
-        if (_sel.Count > 0) StatusText.Text = $"{N(_sel.Count, "foto seleccionada", "fotos seleccionadas")}: arrástralas a un álbum (Mayús + clic marca un rango, Ctrl + A todas).";
+        if (_sel.Count > 0) StatusText.Text = $"{N(_sel.Count, "foto seleccionada", "fotos seleccionadas")}: arrástralas a un álbum o usa «Mover a álbum…» (Mayús + clic marca un rango, Ctrl + A todas).";
     }
 
     private static string N(int n, string one, string many) => n == 1 ? $"1 {one}" : $"{n} {many}";
@@ -194,7 +194,7 @@ public partial class AlbumView : UserControl
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            StatusText.Text = "Error: " + ex.Message;
+            StatusText.Text = $"No se pudieron leer las fotos de la carpeta: {ex.Message} Comprueba que la carpeta sigue ahí y que tienes permiso, y vuelve a abrir esta página.";
             _log.Error(ex.Message);
         }
         finally { Bar.Visibility = Visibility.Collapsed; }
@@ -215,9 +215,13 @@ public partial class AlbumView : UserControl
         GroupList.ItemsSource = _groups.Select(g => $"{g.Name}  ·  {g.Items.Count}").ToList();
         RefreshAlbums();
         var noGps = shown.Count(i => i.Lat == null);
-        StatusText.Text = $"{N(shown.Count, "foto", "fotos")} en {N(_groups.Count, "grupo", "grupos")}" +
-                          (noGps > 0 ? $"; {noGps} sin GPS" : "") +
-                          (_data.VideosAndOthers > 0 ? $". {_data.VideosAndOthers} vídeos y otros archivos no se muestran." : ".");
+        StatusText.Text = _data.Items.Count == 0
+            ? "No hay fotos en esta carpeta todavía. Descárgalas con «Descargar del iPhone…» o elige otra carpeta de fotos."
+            : shown.Count == 0
+                ? (AlbumFilter.SelectedIndex == 1 ? "Ninguna foto está en un álbum todavía: marca fotos y usa «Mover a álbum…» o arrástralas." : "Todas las fotos están ya en algún álbum.")
+                : $"{N(shown.Count, "foto", "fotos")} en {N(_groups.Count, "grupo", "grupos")}" +
+                  (noGps > 0 ? $"; {noGps} sin GPS" : "") +
+                  (_data.VideosAndOthers > 0 ? $". {_data.VideosAndOthers} vídeos y otros archivos no se muestran." : ".");
 
         // Tras mover fotos se vuelve a donde se estaba (el mismo álbum o el mismo grupo).
         var album = _restoreAlbum;
@@ -386,6 +390,13 @@ public partial class AlbumView : UserControl
         if (ThumbOf(sender) is not { } t) return;
         if (e.Key == Key.Space) { SetSelected(t, !t.Selected); _anchor = t; ShowSelection(); e.Handled = true; }
         else if (e.Key == Key.Enter) { OpenThumb(t); e.Handled = true; }
+        else if (IsMenuKey(e) && sender is FrameworkElement fe)
+        {
+            if (!t.Selected) SelectOnly(t);
+            EnsureThumbMenu(fe);
+            OpenMenu(fe);
+            e.Handled = true;
+        }
     }
 
     private void OnThumbExpand(object sender, RoutedEventArgs e)
@@ -423,16 +434,53 @@ public partial class AlbumView : UserControl
     private void OnThumbRightClick(object sender, MouseButtonEventArgs e)
     {
         if (ThumbOf(sender) is { } t && !t.Selected) SelectOnly(t);
-        if (sender is FrameworkElement fe && fe.ContextMenu == null)
-        {
-            var menu = new ContextMenu();
-            AddItem(menu, "Ver en grande", OnThumbOpen);
-            AddItem(menu, "Live Photo: ver el clip y elegir fotograma…", OnThumbLive);
-            AddItem(menu, "Abrir con el visor de Windows", OnThumbExternal);
-            AddItem(menu, "Quitar del álbum (volver a su carpeta por fecha)", OnRemoveFromAlbum);
-            AddItem(menu, "Descartar (apartar a «_Descartadas»)…", OnDiscardSelected);
-            fe.ContextMenu = menu;
-        }
+        if (sender is FrameworkElement fe) EnsureThumbMenu(fe);
+    }
+
+    private void EnsureThumbMenu(FrameworkElement fe)
+    {
+        if (fe.ContextMenu != null) return;
+        var menu = new ContextMenu();
+        AddItem(menu, "Ver en grande", OnThumbOpen);
+        AddItem(menu, "Mover a álbum…", (_, _) => ShowMoveMenu(fe));
+        AddItem(menu, "Live Photo: ver el clip y elegir fotograma…", OnThumbLive);
+        AddItem(menu, "Abrir con el visor de Windows", OnThumbExternal);
+        AddItem(menu, "Quitar del álbum (volver a su carpeta por fecha)", OnRemoveFromAlbum);
+        AddItem(menu, "Descartar (apartar a «_Descartadas»)…", OnDiscardSelected);
+        fe.ContextMenu = menu;
+    }
+
+    /// <summary>Tecla de menú o Mayús + F10: el menú de clic derecho, que antes solo se abría con el ratón.</summary>
+    private static bool IsMenuKey(KeyEventArgs e) =>
+        e.Key == Key.Apps || (e.Key == Key.System && e.SystemKey == Key.F10 && Keyboard.Modifiers == ModifierKeys.Shift);
+
+    private static void OpenMenu(FrameworkElement fe)
+    {
+        fe.ContextMenu!.PlacementTarget = fe;
+        fe.ContextMenu.IsOpen = true;
+    }
+
+    private void OnMoveToAlbum(object sender, RoutedEventArgs e) => ShowMoveMenu((FrameworkElement)sender);
+
+    /// <summary>Alternativa de teclado a arrastrar: un menú con los álbumes (flechas e Intro) para mover las marcadas.</summary>
+    private void ShowMoveMenu(FrameworkElement target)
+    {
+        if (_busy) return;
+        if (SelectedItems.Count == 0) { StatusText.Text = "Marca primero las fotos (clic, o Espacio en la foto con el foco)."; return; }
+        var albums = AlbumService.List(_folder);
+        if (albums.Count == 0) { StatusText.Text = "Todavía no tienes álbumes: crea uno con «+ Nuevo álbum»."; return; }
+        var menu = new ContextMenu { PlacementTarget = target, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        foreach (var name in albums) AddItem(menu, name, async (_, _) => await MoveToAlbumAsync(SelectedItems, name));
+        menu.Opened += (_, _) => (menu.Items[0] as MenuItem)?.Focus();
+        menu.IsOpen = true;
+    }
+
+    private async Task MoveToAlbumAsync(List<AlbumItem> source, string album)
+    {
+        var inAlbum = System.IO.Path.Combine(AlbumService.Folder, album) + System.IO.Path.DirectorySeparatorChar;
+        var items = source.Where(i => !i.Media.RelativePath.StartsWith(inAlbum, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (items.Count == 0) { StatusText.Text = $"Esas fotos ya están en «{album}»."; return; }
+        await MoveAsync(items, album, $"{N(items.Count, "foto añadida", "fotos añadidas")} al álbum «{album}».");
     }
 
     private static void AddItem(ContextMenu menu, string header, RoutedEventHandler click)
@@ -515,11 +563,7 @@ public partial class AlbumView : UserControl
         e.Handled = true;
         if (item?.DataContext is not AlbumEntry album || e.Data.GetData(DragFormat) is not List<AlbumItem> dragged || _busy) return;
         if (album.IsInbox) { StatusText.Text = "«Nuevos» es la bandeja de las fotos recién descargadas: arrástralas desde ahí a uno de tus álbumes."; return; }
-        var inAlbum = System.IO.Path.Combine(AlbumService.Folder, album.Name) + System.IO.Path.DirectorySeparatorChar;
-        var items = dragged
-            .Where(i => !i.Media.RelativePath.StartsWith(inAlbum, StringComparison.OrdinalIgnoreCase)).ToList();
-        if (items.Count == 0) { StatusText.Text = $"Esas fotos ya están en «{album.Name}»."; return; }
-        await MoveAsync(items, album.Name, $"{N(items.Count, "foto añadida", "fotos añadidas")} al álbum «{album.Name}».");
+        await MoveToAlbumAsync(dragged, album.Name);
     }
 
     private async void OnRemoveFromAlbum(object sender, RoutedEventArgs e)
@@ -570,14 +614,27 @@ public partial class AlbumView : UserControl
     {
         if (e.OriginalSource is not DependencyObject d || ItemsControl.ContainerFromElement(AlbumList, d) is not ListBoxItem item) return;
         item.IsSelected = true;
-        if (item.ContextMenu == null)
-        {
-            var menu = new ContextMenu();
-            AddItem(menu, "Cambiar nombre…", OnAlbumRename);
-            AddItem(menu, "Abrir carpeta en el Explorador", OnAlbumOpenFolder);
-            AddItem(menu, "Eliminar álbum (solo si está vacío)", OnAlbumDelete);
-            item.ContextMenu = menu;
-        }
+        EnsureAlbumMenu(item);
+    }
+
+    private void EnsureAlbumMenu(ListBoxItem item)
+    {
+        if (item.ContextMenu != null) return;
+        var menu = new ContextMenu();
+        AddItem(menu, "Cambiar nombre… (F2)", OnAlbumRename);
+        AddItem(menu, "Abrir carpeta en el Explorador", OnAlbumOpenFolder);
+        AddItem(menu, "Eliminar álbum (solo si está vacío)", OnAlbumDelete);
+        item.ContextMenu = menu;
+    }
+
+    // Teclado en la lista de álbumes: tecla de menú o Mayús + F10 abre el menú y F2 cambia el nombre.
+    private void OnAlbumKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F2) { OnAlbumRename(sender, e); e.Handled = true; return; }
+        if (!IsMenuKey(e) || AlbumList.ItemContainerGenerator.ContainerFromItem(AlbumList.SelectedItem) is not ListBoxItem item) return;
+        EnsureAlbumMenu(item);
+        OpenMenu(item);
+        e.Handled = true;
     }
 
     private async void OnAlbumRename(object sender, RoutedEventArgs e)

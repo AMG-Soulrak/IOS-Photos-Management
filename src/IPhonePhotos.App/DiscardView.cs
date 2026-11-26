@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -44,6 +45,8 @@ public sealed class DiscardView : UserControl
     {
         _log = log;
         _status.SetResourceReference(TextBlock.ForegroundProperty, "Muted"); // sigue al cambiar de modo claro/oscuro
+        AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
+        AutomationProperties.SetName(_bar, "Progreso de la búsqueda de descartes");
         var title = new TextBlock { Text = "Descartar capturas y fotos fuera de contexto", FontSize = 20, FontWeight = FontWeights.SemiBold };
         var info = new TextBlock
         {
@@ -116,7 +119,7 @@ public sealed class DiscardView : UserControl
         var image = new Image { Width = 170, Height = 170, Stretch = Stretch.UniformToFill };
         var label = new TextBlock
         {
-            Text = c.Kind == DiscardKind.Screenshot ? "Captura" : "¿Documento?", FontSize = 11, Margin = new Thickness(6, 2, 6, 4),
+            Text = c.Kind == DiscardKind.Screenshot ? "Captura" : "¿Documento?", FontSize = 12, Margin = new Thickness(6, 2, 6, 4),
             Foreground = (Brush)Application.Current.FindResource("Muted")
         };
         var frame = new Border

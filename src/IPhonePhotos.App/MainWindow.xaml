@@ -141,9 +141,9 @@
             <StackPanel>
                 <TextBlock x:Name="StatusText" Text="Conecta el iPhone con el cable, desbloquéalo y pulsa «Confiar»."
                            FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap"
-                           AutomationProperties.AutomationId="StatusText"/>
+                           AutomationProperties.AutomationId="StatusText" AutomationProperties.LiveSetting="Polite"/>
                 <ProgressBar x:Name="Bar" Margin="0,12,0,10" Minimum="0" Maximum="100"
-                             AutomationProperties.AutomationId="ProgressBar"/>
+                             AutomationProperties.AutomationId="ProgressBar" AutomationProperties.Name="Progreso de la copia"/>
                 <TextBlock x:Name="DetailText" Style="{StaticResource AutoHide}" Foreground="{DynamicResource Muted}" TextWrapping="Wrap"
                            AutomationProperties.AutomationId="DetailText"/>
                 <TextBlock x:Name="CurrentText" Style="{StaticResource AutoHide}" Foreground="{DynamicResource Muted}" FontSize="12" Margin="0,2,0,0"

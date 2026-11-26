@@ -17,7 +17,7 @@
             </Grid.ColumnDefinitions>
             <StackPanel>
                 <TextBlock Text="Fotos repetidas" Style="{StaticResource LargeTitle}"/>
-                <TextBlock x:Name="StatusText" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,2,12,0"
+                <TextBlock x:Name="StatusText" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,2,12,0" AutomationProperties.LiveSetting="Polite"
                            Text="Busca fotos iguales o muy parecidas. La app recomienda la más nítida, pero la decisión es tuya y nada se borra: las demás se apartan a la carpeta «_Duplicados»."
                            AutomationProperties.AutomationId="DupStatus"/>
                 <WrapPanel x:Name="EditedPanel" Margin="0,8,12,0" Visibility="Collapsed">
@@ -109,7 +109,8 @@
             </Grid.ColumnDefinitions>
             <StackPanel VerticalAlignment="Center">
                 <TextBlock x:Name="DetailText" Foreground="{DynamicResource Muted}" TextWrapping="Wrap"/>
-                <ProgressBar x:Name="Bar" Minimum="0" Maximum="100" Margin="0,6,12,0" Visibility="Collapsed"/>
+                <ProgressBar x:Name="Bar" Minimum="0" Maximum="100" Margin="0,6,12,0" Visibility="Collapsed"
+                             AutomationProperties.Name="Progreso de la búsqueda de repetidas"/>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal">
                 <Button x:Name="ApplyAllButton" Content="Aplicar las recomendaciones a todos…" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0"
