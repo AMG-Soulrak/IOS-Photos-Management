@@ -68,32 +68,38 @@ public sealed class AlbumService
         var onlyCase = string.Equals(oldName, clean, StringComparison.OrdinalIgnoreCase);
         if (!onlyCase && Directory.Exists(to)) throw new IOException($"Ya existe un álbum llamado «{clean}».");
 
-        try
+        // Los cambios del manifiesto se preparan antes de tocar la carpeta y se guardan de una vez (todos o ninguno).
+        var oldPrefix = Path.Combine(Folder, oldName) + Path.DirectorySeparatorChar;
+        var newPrefix = Path.Combine(Folder, clean) + Path.DirectorySeparatorChar;
+        var changed = store?.All().Where(r => r.EffectiveLocalRelativePath.StartsWith(oldPrefix, StringComparison.OrdinalIgnoreCase)).ToList()
+                      ?? new List<FileRecord>();
+        foreach (var rec in changed) rec.LocalRelativePath = newPrefix + rec.EffectiveLocalRelativePath[oldPrefix.Length..];
+
+        void MoveFolder(string a, string b)
         {
-            if (onlyCase) // en Windows, cambiar solo mayúsculas/minúsculas exige pasar por un nombre intermedio
-            {
-                var tmp = from + ".renombrando";
-                Directory.Move(from, tmp);
-                try { Directory.Move(tmp, to); }
-                catch { Directory.Move(tmp, from); throw; } // que no quede el álbum con el nombre provisional
-            }
-            else Directory.Move(from, to);
+            if (!onlyCase) { Directory.Move(a, b); return; }
+            // En Windows, cambiar solo mayúsculas/minúsculas exige pasar por un nombre intermedio.
+            var tmp = a + ".renombrando";
+            Directory.Move(a, tmp);
+            try { Directory.Move(tmp, b); }
+            catch { Directory.Move(tmp, a); throw; } // que no quede el álbum con el nombre provisional
         }
+
+        try { MoveFolder(from, to); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             throw new IOException($"No se pudo renombrar «{oldName}»: alguna foto del álbum está abierta en otro programa o el Explorador está dentro de la carpeta. Ciérralo e inténtalo de nuevo.", ex);
         }
 
-        if (store != null)
+        if (store != null && changed.Count > 0)
         {
-            var oldPrefix = Path.Combine(Folder, oldName) + Path.DirectorySeparatorChar;
-            var newPrefix = Path.Combine(Folder, clean) + Path.DirectorySeparatorChar;
-            foreach (var rec in store.All().ToList())
+            try { store.UpsertAll(changed); }
+            catch (Exception ex)
             {
-                var path = rec.EffectiveLocalRelativePath;
-                if (!path.StartsWith(oldPrefix, StringComparison.OrdinalIgnoreCase)) continue;
-                rec.LocalRelativePath = newPrefix + path[oldPrefix.Length..];
-                store.Upsert(rec);
+                // Sin el manifiesto al día, la carpeta vuelve a su nombre: carpeta y manifiesto no quedan desparejados.
+                try { MoveFolder(to, from); }
+                catch (Exception back) { _log.Error($"El álbum quedó como «{clean}» pero el manifiesto no se actualizó: {back.Message}"); }
+                throw new IOException($"No se pudo renombrar «{oldName}»: no se pudo anotar el cambio en el manifiesto ({ex.Message}).", ex);
             }
         }
         _log.Info($"Álbum «{oldName}» renombrado a «{clean}».");

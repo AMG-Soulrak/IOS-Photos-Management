@@ -98,6 +98,9 @@ public sealed class ManifestStore : IDisposable
 
     public void Upsert(FileRecord record) => _files.Upsert(record);
 
+    /// <summary>Guarda varios registros de una vez: o se guardan todos o ninguno (una sola transacción de LiteDB).</summary>
+    public void UpsertAll(IEnumerable<FileRecord> records) => _files.Upsert(records);
+
     public IEnumerable<FileRecord> All() => Safe(_files.FindAll());
 
     public IReadOnlyList<FileRecord> InState(FileState state) => Safe(_files.Find(x => x.State == state)).ToList();
