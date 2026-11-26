@@ -41,8 +41,11 @@ public sealed class AfcProvider : IDeviceBackendProvider
             if (_loaded.HasValue) { error = _loadError; return _loaded.Value; }
             try
             {
-                var dir = FindNativeDirectory()
-                          ?? throw new DllNotFoundException("No se encuentra imobiledevice.dll junto a la aplicación.");
+                var dir = NativeVault.Prepare(SourceDirectories(), NativeVault.DefaultTarget, out var vaultError)
+                          ?? throw new DllNotFoundException(vaultError);
+                // Segunda comprobación justo antes de cargar (acorta la ventana entre verificar y cargar).
+                if (!NativeVault.Verify(Path.Combine(dir, "imobiledevice.dll")))
+                    throw new DllNotFoundException("imobiledevice.dll cambió tras verificarla; no se carga.");
                 NativeLibraries.Load(dir);
                 if (!LibiMobileDevice.Instance.LibraryFound)
                     throw new DllNotFoundException($"libimobiledevice no se pudo cargar desde {dir}.");
@@ -59,46 +62,23 @@ public sealed class AfcProvider : IDeviceBackendProvider
         }
     }
 
-    /// <summary>Busca la carpeta con las bibliotecas nativas: junto al .exe, en runtimes\win-x64\native o en la carpeta de extracción.</summary>
-    private static string? FindNativeDirectory()
+    /// <summary>
+    /// Dónde pueden venir las DLL: junto al .exe, en runtimes\win-x64\native o, en la app de un solo archivo, en la
+    /// carpeta exacta donde .NET las extrajo (NATIVE_DLL_SEARCH_DIRECTORIES), sin rastrear %TEMP%\.net. Lo que salga de
+    /// aquí solo se usa si su SHA-256 es el conocido (ver <see cref="NativeVault"/>).
+    /// </summary>
+    private static IEnumerable<string> SourceDirectories()
     {
-        var candidates = new List<string>();
-        void Add(string? p) { if (!string.IsNullOrEmpty(p)) candidates.Add(p); }
-
         var exeDir = Path.GetDirectoryName(Environment.ProcessPath ?? "");
         foreach (var baseDir in new[] { AppContext.BaseDirectory, exeDir })
         {
             if (string.IsNullOrEmpty(baseDir)) continue;
-            Add(baseDir);
-            Add(Path.Combine(baseDir, "runtimes", "win-x64", "native"));
+            yield return baseDir;
+            yield return Path.Combine(baseDir, "runtimes", "win-x64", "native");
         }
-
-        // Aplicación en un solo archivo: .NET extrae las bibliotecas nativas a una carpeta temporal.
-        try
-        {
-            foreach (System.Diagnostics.ProcessModule m in Process.GetCurrentProcess().Modules)
-                if (string.Equals(m.ModuleName, "imobiledevice.dll", StringComparison.OrdinalIgnoreCase))
-                    Add(Path.GetDirectoryName(m.FileName));
-        }
-        catch { /* sin permiso para listar módulos: se sigue con los demás candidatos */ }
-
-        var extractBase = Environment.GetEnvironmentVariable("DOTNET_BUNDLE_EXTRACT_BASE_DIR");
-        var roots = new List<string>();
-        if (!string.IsNullOrEmpty(extractBase)) roots.Add(extractBase);
-        roots.Add(Path.Combine(Path.GetTempPath(), ".net"));
-        foreach (var root in roots)
-        {
-            try
-            {
-                if (!Directory.Exists(root)) continue;
-                var found = Directory.EnumerateFiles(root, "imobiledevice.dll", SearchOption.AllDirectories)
-                    .OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
-                if (found != null) Add(Path.GetDirectoryName(found));
-            }
-            catch { }
-        }
-
-        return candidates.FirstOrDefault(c => File.Exists(Path.Combine(c, "imobiledevice.dll")));
+        if (AppContext.GetData("NATIVE_DLL_SEARCH_DIRECTORIES") is string dirs)
+            foreach (var d in dirs.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+                yield return d;
     }
 
     private static readonly object CacheGate = new();

@@ -108,6 +108,31 @@ public class SecurityTests
         Assert.DoesNotContain("IMG_0001", text);
     }
 
+    [Fact]
+    public void Native_vault_rejects_a_planted_dll_and_accepts_the_package_ones()
+    {
+        using var sb = new Sandbox();
+        var planted = Path.Combine(sb.Root, "plantada");
+        Directory.CreateDirectory(planted);
+        foreach (var n in new[] { "imobiledevice.dll", "plist.dll", "usbmuxd.dll" })
+            File.WriteAllBytes(Path.Combine(planted, n), Sandbox.Bytes(4096, 3));
+
+        var target = Path.Combine(sb.Root, "native");
+        Assert.Null(NativeVault.Prepare(new[] { planted }, target, out var error));
+        Assert.Contains("imobiledevice.dll", error);
+        Assert.False(File.Exists(Path.Combine(target, "imobiledevice.dll")));
+
+        // La plantada va primero, pero se salta y se toma la buena del paquete.
+        var real = Path.Combine(AppContext.BaseDirectory, "runtimes", "win-x64", "native");
+        Assert.Equal(target, NativeVault.Prepare(new[] { planted, real }, target, out _));
+        Assert.True(NativeVault.Verify(Path.Combine(target, "imobiledevice.dll")));
+
+        // Si alguien la cambia en la carpeta propia, la siguiente preparación la repone.
+        File.WriteAllBytes(Path.Combine(target, "imobiledevice.dll"), Sandbox.Bytes(10, 1));
+        Assert.Equal(target, NativeVault.Prepare(new[] { real }, target, out _));
+        Assert.True(NativeVault.Verify(Path.Combine(target, "imobiledevice.dll")));
+    }
+
     private static void CopyDir(string from, string to)
     {
         foreach (var f in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))
