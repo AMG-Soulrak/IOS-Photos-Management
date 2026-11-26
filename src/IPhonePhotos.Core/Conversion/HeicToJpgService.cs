@@ -62,6 +62,18 @@ public sealed class HeicToJpgService
         return new ConversionResult(converted, skipped, failed);
     }
 
+    /// <summary>¿Puede Windows abrir este archivo? (con HEIC, false suele indicar que falta «Extensiones de imagen HEIF»).</summary>
+    public static bool CanDecode(string path)
+    {
+        try
+        {
+            using var input = File.OpenRead(path);
+            _ = BitmapDecoder.Create(input, BitmapCreateOptions.None, BitmapCacheOption.OnLoad).Frames[0].PixelWidth;
+            return true;
+        }
+        catch { return false; }
+    }
+
     public static void ConvertOne(string src, string dest, int quality)
     {
         using var input = File.OpenRead(src);

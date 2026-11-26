@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using IPhonePhotos.Core.Backends;
+using IPhonePhotos.Core.Connection;
+using IPhonePhotos.Core.Conversion;
 using IPhonePhotos.Core.Manifest;
 using IPhonePhotos.Core.Models;
 using IPhonePhotos.Core.Organize;
@@ -149,8 +151,11 @@ public sealed class TransferEngine
             summary.BaselineSet = true;
         }
 
-        var total = scan.Pending.Count;
-        var bytesTotal = scan.PendingBytes;
+        // Reintentar solo algunos «no copiados»: el resto de pendientes se deja para otra vez.
+        var pending = options.OnlyPaths == null ? scan.Pending
+            : scan.Pending.Where(p => options.OnlyPaths.Contains(p.Remote.RelativePath)).ToList();
+        var total = pending.Count;
+        var bytesTotal = pending.Sum(p => p.Remote.Size);
         var done = 0;
         long bytesDone = 0;
         var clock = Stopwatch.StartNew();
@@ -161,7 +166,7 @@ public sealed class TransferEngine
 
         Report(null, 0, 0);
 
-        foreach (var item in scan.Pending)
+        foreach (var item in pending)
         {
             ct.ThrowIfCancellationRequested();
             var rf = item.Remote;
@@ -178,7 +183,7 @@ public sealed class TransferEngine
                 }
                 else
                 {
-                    await DownloadOneAsync(backend, store, rec, rf, options,
+                    await DownloadOneAsync(backend, store, rec, rf, options, summary,
                         cur => Report(rf.RelativePath, cur, rf.Size), ct).ConfigureAwait(false);
                     summary.Copied++;
                     summary.BytesCopied += rf.Size;
@@ -187,6 +192,7 @@ public sealed class TransferEngine
                 }
                 // Si antes había fallado con otra técnica y ahora se ha copiado, deja de contar como fallo.
                 summary.FailedFiles.Remove(rf.RelativePath);
+                summary.FailureReasons.Remove(rf.RelativePath);
             }
             catch (OperationCanceledException)
             {
@@ -206,6 +212,7 @@ public sealed class TransferEngine
                 rec.LastError = ex.Message;
                 store.Upsert(rec);
                 if (!summary.FailedFiles.Contains(rf.RelativePath)) summary.FailedFiles.Add(rf.RelativePath);
+                summary.FailureReasons[rf.RelativePath] = ErrorExplainer.FileReason(ex); // un archivo malo no detiene el resto
                 _log.Error($"No se pudo copiar {rf.RelativePath} ({backend.Device.Technique}): {ex.Message}");
             }
 
@@ -220,7 +227,7 @@ public sealed class TransferEngine
     }
 
     private async Task DownloadOneAsync(IDeviceBackend backend, ManifestStore store, FileRecord rec, RemoteFile rf,
-        TransferOptions options, Action<long> onBytes, CancellationToken ct)
+        TransferOptions options, TransferSummary summary, Action<long> onBytes, CancellationToken ct)
     {
         for (var attempt = 1; ; attempt++)
         {
@@ -274,22 +281,43 @@ public sealed class TransferEngine
                 }
 
                 if (rf.Size > 0 && written != rf.Size)
-                    throw new IOException($"Tamaño recibido ({written}) distinto del esperado ({rf.Size}).");
+                    throw new IncompleteFileException(written, rf.Size);
+
+                // Fecha de captura (EXIF/QuickTime). Con «Año\Mes», la carpeta se decide con ella y no con la del dispositivo.
+                var name = Path.GetFileName(rf.RelativePath);
+                var taken = CaptureDate.Read(part, name);
+                if (taken == null && CaptureDate.Applies(name)) summary.NoCaptureDate++;
+                if (options.NewFolder == null && options.OrganizeByDate && taken != null
+                    && string.Equals(Path.GetDirectoryName(localRel), Path.GetDirectoryName(DateLayout.Map(rf.RelativePath, rf.Modified)), StringComparison.OrdinalIgnoreCase))
+                {
+                    var byCapture = DateLayout.Map(rf.RelativePath, taken);
+                    if (!string.Equals(byCapture, localRel, StringComparison.OrdinalIgnoreCase))
+                    {
+                        localRel = ResolveFreeRelativePath(options.DestinationRoot, byCapture);
+                        target = SafePath.Join(options.DestinationRoot, localRel);
+                        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                        rec.LocalRelativePath = localRel;
+                    }
+                }
 
                 File.Move(part, target, overwrite: false);
 
-                if (options.PreserveTimestamps && rf.Modified is { } m)
+                if (options.PreserveTimestamps)
                 {
                     try
                     {
-                        File.SetLastWriteTime(target, m);
-                        File.SetCreationTime(target, m);
+                        // Creación = captura. Modificación = la del dispositivo: con ella se reconoce después la foto ya copiada
+                        // (nombre + tamaño + fecha); cambiarla haría que se volviera a descargar como «nombre (2)».
+                        if (rf.Modified is { } m) File.SetLastWriteTime(target, m);
+                        else if (taken is { } t0) File.SetLastWriteTime(target, t0);
+                        if ((taken ?? rf.Modified) is { } c) File.SetCreationTime(target, c);
                     }
                     catch { /* conservar la fecha es opcional */ }
                 }
 
                 rec.Sha256 = hash;
                 MarkDownloaded(store, rec, rf, null);
+                AfterCopy(target, localRel, options, summary);
                 return;
             }
             catch (OperationCanceledException)
@@ -338,6 +366,35 @@ public sealed class TransferEngine
         rec.State = FileState.Verified;
         store.Upsert(rec);
         return true;
+    }
+
+    /// <summary>Extras tras copiar un archivo: contar ediciones, comprobar HEIC y la copia JPG opcional. Nunca hace fallar la copia.</summary>
+    private void AfterCopy(string target, string localRel, TransferOptions options, TransferSummary summary)
+    {
+        if (EditedVersions.IsEdited(target) && !target.EndsWith(".aae", StringComparison.OrdinalIgnoreCase)) summary.EditedVersions++;
+        var isHeic = Path.GetExtension(target).ToLowerInvariant() is ".heic" or ".heif";
+        if (!isHeic) return;
+        summary.HeicReadable ??= HeicToJpgService.CanDecode(target);
+        if (!options.AlsoJpg) return;
+
+        var jpg = Path.ChangeExtension(Path.Combine(options.JpgRoot, localRel), ".jpg");
+        var tmp = jpg + ".tmp"; // si se corta a mitad no queda un JPG a medias que luego se dé por bueno
+        try
+        {
+            if (File.Exists(jpg)) return;
+            Directory.CreateDirectory(Path.GetDirectoryName(jpg)!);
+            HeicToJpgService.ConvertOne(target, tmp, 92);
+            File.Move(tmp, jpg);
+            File.SetCreationTime(jpg, File.GetCreationTime(target));
+            File.SetLastWriteTime(jpg, File.GetLastWriteTime(target));
+            summary.JpgCreated++;
+        }
+        catch (Exception ex)
+        {
+            summary.JpgFailed++;
+            _log.Warn($"No se pudo crear la copia JPG de {localRel}: {ex.Message}");
+            try { File.Delete(tmp); } catch { }
+        }
     }
 
     // ------------------------------------------------------------------ Utilidades

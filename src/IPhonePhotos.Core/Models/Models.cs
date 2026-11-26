@@ -133,7 +133,11 @@ public static class FileIdentity
 
 public sealed class DeviceLostException : Exception
 {
-    public DeviceLostException(string message, Exception? inner = null) : base(message, inner) { }
+    public DeviceLostException(string message, Exception? inner = null,
+        Connection.ConnectionProblem problem = Connection.ConnectionProblem.None) : base(message, inner) => Problem = problem;
+
+    /// <summary>Causa probable, si se sabe (la usan el asistente y los mensajes de error).</summary>
+    public Connection.ConnectionProblem Problem { get; }
 }
 
 public enum AdoptMode
@@ -179,6 +183,15 @@ public sealed class TransferOptions
 
     /// <summary>Tiempo máximo para abrir una técnica antes de pasar a la siguiente.</summary>
     public TimeSpan OpenTimeout { get; set; } = TimeSpan.FromSeconds(45);
+
+    /// <summary>Si no es null, solo se descargan estas rutas del dispositivo (reintentar uno o varios «no copiados»).</summary>
+    public IReadOnlySet<string>? OnlyPaths { get; set; }
+
+    /// <summary>Guardar además una copia JPG de cada HEIC en «&lt;destino&gt; (JPG)». Los originales no se tocan.</summary>
+    public bool AlsoJpg { get; set; }
+
+    /// <summary>Carpeta de las copias JPG: junto al destino, para que no cuenten como fotos repetidas de la biblioteca.</summary>
+    public string JpgRoot => DestinationRoot.TrimEnd('\\', '/') + " (JPG)";
 }
 
 /// <param name="AdoptPath">Ruta relativa, en la biblioteca, del archivo que podría ser este mismo (si <paramref name="AdoptCandidate"/>).</param>
@@ -217,6 +230,41 @@ public sealed class TransferSummary
 
     /// <summary>Aviso si se leyó de una copia de seguridad (puede estar desactualizada).</summary>
     public string? SnapshotWarning { get; set; }
+
+    /// <summary>Motivo llano de cada archivo que sigue sin copiarse (ruta del dispositivo → motivo).</summary>
+    public Dictionary<string, string> FailureReasons { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public TimeSpan Duration { get; set; }
+
+    /// <summary>Lo que diga el dispositivo de «Optimizar almacenamiento» (null: no lo informa).</summary>
+    public bool? OptimizeStorage { get; set; }
+
+    /// <summary>Cuántos archivos dice el dispositivo que tiene (null: no lo informa; ninguna técnica real lo hace hoy).</summary>
+    public int? DeclaredOnDevice { get; set; }
+
+    /// <summary>Archivos vistos en el dispositivo en el último escaneo en vivo.</summary>
+    public int SeenOnDevice { get; set; }
+
+    /// <summary>Archivos que el dispositivo declara pero no se ven (solo en iCloud). Null si no se puede saber.</summary>
+    public int? OnlyInCloud => DeclaredOnDevice is { } d ? Math.Max(0, d - SeenOnDevice) : null;
+
+    /// <summary>Fotos y vídeos copiados sin fecha de captura fiable (se usó la del dispositivo).</summary>
+    public int NoCaptureDate { get; set; }
+
+    /// <summary>Versiones editadas (IMG_E…) copiadas: no son repetidas.</summary>
+    public int EditedVersions { get; set; }
+
+    public int JpgCreated { get; set; }
+    public int JpgFailed { get; set; }
+
+    /// <summary>¿Puede Windows abrir los HEIC copiados? Null si no se copió ninguno.</summary>
+    public bool? HeicReadable { get; set; }
+
+    /// <summary>Texto del informe de la copia (el mismo que <c>ultima-copia.txt</c>).</summary>
+    public string? ReportText { get; set; }
+
+    /// <summary>Avisos para enseñar al terminar (iCloud, HEIC…), en lenguaje llano.</summary>
+    public List<string> Notices { get; } = new();
 
     /// <summary>
     /// Se pone al terminar el primer escaneo. "Ya copiados" se refiere a lo que había ANTES de esta ejecución:

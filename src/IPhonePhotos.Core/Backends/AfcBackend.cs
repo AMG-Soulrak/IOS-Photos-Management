@@ -1,3 +1,4 @@
+using IPhonePhotos.Core.Connection;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using IPhonePhotos.Core.Models;
@@ -147,7 +148,7 @@ public sealed class AfcProvider : IDeviceBackendProvider
         if (!EnsureNativeLibraries(out var error))
             throw new InvalidOperationException($"No se pudieron cargar las bibliotecas de libimobiledevice: {error}");
         if (!UsbmuxdReachable())
-            throw new InvalidOperationException(
+            throw new ConnectionProblemException(ConnectionProblem.DriverMissing,
                 "El servicio de Apple (Apple Mobile Device Service) no responde. Instala o repara «Apple Devices» (Microsoft Store).");
         return AfcBackend.Connect(device);
     }
@@ -181,17 +182,17 @@ public sealed class AfcBackend : IDeviceBackend
         {
             var derr = lib.iDevice.idevice_new(out dev, descriptor.Id);
             if (derr != iDeviceError.Success || dev == null || dev.IsInvalid)
-                throw new InvalidOperationException($"El servicio de Apple no encuentra el dispositivo ({derr}). ¿Está conectado y Apple Mobile Device Service activo?");
+                throw new ConnectionProblemException(ConnectionProblem.NotVisible, $"El servicio de Apple no encuentra el dispositivo ({derr}). ¿Está conectado y Apple Mobile Device Service activo?");
 
             var lerr = lib.Lockdown.lockdownd_client_new_with_handshake(dev, out lockdown, "IPhonePhotos");
             if (lerr != LockdownError.Success || lockdown == null || lockdown.IsInvalid)
-                throw new InvalidOperationException(Explain(lerr));
+                throw new ConnectionProblemException(ProblemOf(lerr), Explain(lerr));
 
             var name = ReadName(lib, lockdown);
 
             lerr = lib.Lockdown.lockdownd_start_service(lockdown, "com.apple.afc", out service);
             if (lerr != LockdownError.Success || service == null || service.IsInvalid)
-                throw new InvalidOperationException($"El iPhone no abre el servicio de archivos ({lerr}). Desbloquéalo y vuelve a intentarlo.");
+                throw new ConnectionProblemException(ConnectionProblem.Locked, $"El iPhone no abre el servicio de archivos ({lerr}). Desbloquéalo y vuelve a intentarlo.");
 
             var aerr = lib.Afc.afc_client_new(dev, service, out afc);
             if (aerr != AfcError.Success || afc == null || afc.IsInvalid)
@@ -226,6 +227,16 @@ public sealed class AfcBackend : IDeviceBackend
             return "";
         }
     }
+
+    private static ConnectionProblem ProblemOf(LockdownError e) => e switch
+    {
+        LockdownError.PasswordProtected => ConnectionProblem.Locked,
+        LockdownError.UserDeniedPairing => ConnectionProblem.TrustDenied,
+        LockdownError.PairingDialogResponsePending or LockdownError.InvalidPairRecord or LockdownError.MissingPairRecord
+            or LockdownError.PairingFailed => ConnectionProblem.TrustPending,
+        LockdownError.MuxError => ConnectionProblem.DriverMissing,
+        _ => ConnectionProblem.Unknown
+    };
 
     private static string Explain(LockdownError e) => e switch
     {

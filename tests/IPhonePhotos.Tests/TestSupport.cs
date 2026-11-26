@@ -88,6 +88,13 @@ public sealed class FlakyProvider : IDeviceBackendProvider
     /// <summary>Si es true, abrir esta técnica falla (como un iPhone bloqueado o un controlador roto).</summary>
     public bool FailToOpen { get; set; }
 
+    /// <summary>Si se pone, abrir falla con esa causa clasificada (bloqueado, «No confiar», sin controlador…).</summary>
+    public IPhonePhotos.Core.Connection.ConnectionProblem? OpenProblem { get; set; }
+
+    /// <summary>Lo que «diría» el dispositivo de iCloud (null: no lo informa, como las técnicas reales).</summary>
+    public bool? OptimizeStorage { get; set; }
+    public int? DeclaredMediaCount { get; set; }
+
     /// <summary>Si es true, la técnica abre bien pero no muestra ninguna foto (típico de WPD con el iPhone bloqueado).</summary>
     public bool ShowNothing { get; set; }
 
@@ -119,6 +126,7 @@ public sealed class FlakyProvider : IDeviceBackendProvider
     {
         if (!Present) throw new DeviceLostException("ausente");
         if (FailToOpen) throw new InvalidOperationException("no abre (simulado)");
+        if (OpenProblem is { } problem) throw new IPhonePhotos.Core.Connection.ConnectionProblemException(problem, $"no abre: {problem} (simulado)");
         Opens++;
         var real = _inner.Open(device);
         var flaky = new FlakyBackend(real, this);
@@ -132,8 +140,11 @@ public sealed class FlakyProvider : IDeviceBackendProvider
     }
 }
 
-public sealed class FlakyBackend : IDeviceBackend
+public sealed class FlakyBackend : IDeviceBackend, ICloudStateReporter
 {
+    public bool? OptimizeStorage => _provider.OptimizeStorage;
+    public int? DeclaredMediaCount => _provider.DeclaredMediaCount;
+
     private readonly IDeviceBackend _inner;
     private readonly FlakyProvider _provider;
     private int _copiesStarted;

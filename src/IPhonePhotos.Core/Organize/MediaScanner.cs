@@ -37,6 +37,7 @@ public static class MediaScanner
            || string.Equals(firstSegment, LivePhotoService.BackupFolder, StringComparison.OrdinalIgnoreCase)
            || string.Equals(firstSegment, DuplicateService.QuarantineFolder, StringComparison.OrdinalIgnoreCase)
            || string.Equals(firstSegment, DiscardService.Folder, StringComparison.OrdinalIgnoreCase)
+           || string.Equals(firstSegment, EditedVersions.Folder, StringComparison.OrdinalIgnoreCase)
            || string.Equals(firstSegment, AlbumService.Folder, StringComparison.OrdinalIgnoreCase);
 
     /// <param name="includeAlbums">Si es false, las fotos que el usuario ha puesto en sus álbumes se ignoran (así «Organizar» no las

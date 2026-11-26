@@ -44,7 +44,7 @@ public static class PhotoInfoReader
                 var key = Key(f);
                 if (!cache.TryGetValue(key, out var info))
                 {
-                    info = ReadOne(Path.Combine(root, f.RelativePath));
+                    info = ReadFile(Path.Combine(root, f.RelativePath));
                     cache[key] = info;
                     changed = true;
                 }
@@ -65,7 +65,8 @@ public static class PhotoInfoReader
         return new Dictionary<string, PhotoInfo>(result, StringComparer.OrdinalIgnoreCase);
     }
 
-    private static PhotoInfo ReadOne(string path)
+    /// <summary>Lee un archivo (por su contenido, no por la extensión). Sin metadatos legibles devuelve todo null.</summary>
+    public static PhotoInfo ReadFile(string path)
     {
         try
         {

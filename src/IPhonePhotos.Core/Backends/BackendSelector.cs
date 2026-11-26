@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using IPhonePhotos.Core.Connection;
 using IPhonePhotos.Core.Models;
 
 namespace IPhonePhotos.Core.Backends;
@@ -25,7 +26,8 @@ public sealed record ProbeResult(
     bool ReportsDates,
     bool ReportsSizes,
     TimeSpan ListTime,
-    double Score);
+    double Score,
+    ConnectionProblem Problem = ConnectionProblem.None);
 
 /// <summary>
 /// Elige la técnica más apropiada para el dispositivo conectado.
@@ -142,7 +144,7 @@ public sealed class BackendSelector
         ct.ThrowIfCancellationRequested();
         _log.Warn($"{technique.Name}: la prueba tardó más de {limit.TotalSeconds:F0} s y se descarta.");
         return new ProbeResult(technique.Device, technique.Name, false, $"sin respuesta en {limit.TotalSeconds:F0} s",
-            0, null, 0, false, null, false, false, clock.Elapsed, 0);
+            0, null, 0, false, null, false, false, clock.Elapsed, 0, ConnectionProblem.Timeout);
     }
 
     private async Task<ProbeResult> ProbeCoreAsync(Technique technique, CancellationToken ct)
@@ -188,14 +190,16 @@ public sealed class BackendSelector
                         + (datesOk ? 5 : 0)
                         + Math.Min((kbps ?? 0) / 1024.0, 40);
 
+            var problem = files.Count == 0 ? ConnectionProblem.NoPhotosVisible
+                : !canRead ? ConnectionProblem.ReadFailed : ConnectionProblem.None;
             return new ProbeResult(backend.Device, provider.Technique, true, readError, files.Count, sample?.RelativePath,
-                sampleBytes, canRead, kbps, datesOk, sizesOk, listTime, score);
+                sampleBytes, canRead, kbps, datesOk, sizesOk, listTime, score, problem);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
             return new ProbeResult(technique.Device, provider.Technique, false, ex.Message, 0, null, 0, false, null, false, false,
-                clock.Elapsed, 0);
+                clock.Elapsed, 0, ConnectionAssistant.Classify(ex));
         }
         finally
         {
@@ -249,7 +253,8 @@ public sealed class BackendSelector
         if (candidates.Count == 0)
         {
             throw new DeviceLostException(
-                $"No se encuentra '{target.DisplayName}'. ¿Está conectado, desbloqueado y con \"Confiar\" aceptado?");
+                $"No se encuentra '{target.DisplayName}'. ¿Está conectado, desbloqueado y con \"Confiar\" aceptado?",
+                problem: ConnectionProblem.NotVisible);
         }
 
         Exception? last = null;
@@ -268,7 +273,7 @@ public sealed class BackendSelector
             }
         }
 
-        throw new DeviceLostException("Ninguna técnica pudo abrir el dispositivo: " + last?.Message, last);
+        throw new DeviceLostException("Ninguna técnica pudo abrir el dispositivo: " + last?.Message, last, ConnectionAssistant.Classify(last));
     }
 
     // ------------------------------------------------------------------ Informe

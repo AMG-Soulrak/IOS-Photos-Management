@@ -56,7 +56,8 @@ public sealed class WpdProvider : IDeviceBackendProvider
     {
         // Solo lectura, sin alternativa: "Default" en WPD puede pedir también escritura y la app ya no escribe nunca.
         var dev = ListDevices().FirstOrDefault(x => string.Equals(x.DeviceId, device.Id, StringComparison.OrdinalIgnoreCase))
-                  ?? throw new DeviceLostException($"No se encuentra '{device.DisplayName}'. ¿Está conectado y desbloqueado?");
+                  ?? throw new DeviceLostException($"No se encuentra '{device.DisplayName}'. ¿Está conectado y desbloqueado?",
+                      problem: Connection.ConnectionProblem.NotVisible);
         try
         {
             dev.Connect(MediaDeviceAccess.GenericRead, MediaDeviceShare.Default, false);

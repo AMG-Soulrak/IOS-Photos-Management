@@ -8,10 +8,12 @@ public static class DateLayout
     /// <summary>Fechas anteriores a esta se consideran "sin fecha" (un dispositivo sin reloj suele informar 1970 o 1980).</summary>
     private const int MinPlausibleYear = 1990;
 
+    public static bool IsPlausible(DateTime? date) => date is { } d && d.Year >= MinPlausibleYear && d <= DateTime.Now.AddDays(2);
+
     public static string Map(string relativePath, DateTime? date)
     {
         var name = Path.GetFileName(relativePath);
-        var folder = date is { } d && d.Year >= MinPlausibleYear && d <= DateTime.Now.AddDays(2)
+        var folder = IsPlausible(date) && date is { } d
             ? Path.Combine(d.Year.ToString("0000"), d.Month.ToString("00"))
             : NoDateFolder;
         return Path.Combine(folder, name);

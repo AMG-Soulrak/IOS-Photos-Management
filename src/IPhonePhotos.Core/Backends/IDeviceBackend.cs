@@ -46,3 +46,16 @@ public interface IDeviceBackend : IDisposable
     /// <summary>¿Sigue conectado el dispositivo? Se usa para distinguir "error del archivo" de "cable desenchufado".</summary>
     bool IsAlive();
 }
+
+/// <summary>
+/// Opcional: una técnica que sepa qué dice el dispositivo de iCloud. Ninguna técnica real lo informa todavía (WPD, AFC y copia
+/// de seguridad no exponen ese ajuste ni un recuento fiable); si no se implementa, la app dice «no se pudo comprobar».
+/// </summary>
+public interface ICloudStateReporter
+{
+    /// <summary>«Optimizar almacenamiento» activo (null: no se sabe).</summary>
+    bool? OptimizeStorage { get; }
+
+    /// <summary>Archivos de fotos y vídeos que el dispositivo declara tener, estén o no en el teléfono (null: no se sabe).</summary>
+    int? DeclaredMediaCount { get; }
+}

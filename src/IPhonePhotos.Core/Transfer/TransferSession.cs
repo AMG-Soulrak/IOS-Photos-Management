@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using IPhonePhotos.Core.Backends;
+using IPhonePhotos.Core.Connection;
 using IPhonePhotos.Core.Manifest;
 using IPhonePhotos.Core.Models;
 
@@ -38,7 +40,9 @@ public sealed class TransferSession
         _log.AttachFile(Path.Combine(ManifestStore.MetaFolder(options.DestinationRoot), $"log-{DateTime.Now:yyyyMMdd}.txt"));
 
         var summary = new TransferSummary();
+        var clock = Stopwatch.StartNew();
         var reasons = new List<string>();
+        var problems = new List<ConnectionProblem>();
         var anyOpened = false;
         var liveCompletedWithFiles = false;
 
@@ -68,7 +72,7 @@ public sealed class TransferSession
                 _log.Warn($"Se recurre a la copia de seguridad ({tech.Device.Detail}). Puede estar desactualizada.");
             }
 
-            var (outcome, files, usedTech) = await RunTechniqueAsync(tech, device, options, summary, reasons, progress, status, ct)
+            var (outcome, files, usedTech) = await RunTechniqueAsync(tech, device, options, summary, reasons, problems, progress, status, ct)
                 .ConfigureAwait(false);
             if (outcome != Outcome.Unavailable) anyOpened = true;
 
@@ -91,11 +95,16 @@ public sealed class TransferSession
         }
 
         if (!anyOpened)
-            throw new DeviceLostException("No se pudo abrir el dispositivo con ninguna técnica:\n· " + string.Join("\n· ", reasons));
+            throw new DeviceLostException("No se pudo abrir el dispositivo con ninguna técnica:\n· " + string.Join("\n· ", reasons),
+                problem: ConnectionAssistant.MostRelevant(problems));
 
         if (summary.Copied == 0 && summary.AlreadyDone == 0 && summary.Failed == 0)
             _log.Warn("No se ve ninguna foto con ninguna técnica. Comprueba que el iPhone esté desbloqueado y que hayas pulsado \"Confiar\".");
 
+        if (summary.HeicReadable == false)
+            summary.Notices.Add("Windows no puede abrir las fotos HEIC en este PC. Instala «Extensiones de imagen HEIF» desde Microsoft Store " +
+                                "o marca «Guardar también una copia JPG» y copia de nuevo (lo ya copiado no se repite).");
+        summary.Duration = clock.Elapsed;
         WriteLastCopyReport(options.DestinationRoot, summary);
         progress?.Report(new TransferProgress(TransferPhase.Done, 0, 0, 0, 0, null, 0, 0, 0));
         return summary;
@@ -113,15 +122,8 @@ public sealed class TransferSession
         {
             Dictionary<FileState, int> counts;
             using (var store = ManifestStore.Open(destinationRoot)) counts = store.CountByState();
-            var text =
-                $"Última copia: {DateTime.Now:yyyy-MM-dd HH:mm}\r\n" +
-                $"Copiadas en esta sesión: {summary.Copied}\r\n" +
-                $"Ya estaban: {summary.AlreadyDone}\r\n" +
-                $"Fallidas: {summary.Failed}\r\n" +
-                $"En total en la carpeta: {counts[FileState.Verified]} verificadas, {counts[FileState.Downloaded]} copiadas sin verificar, " +
-                $"{counts[FileState.AdoptedUnverified]} adoptadas sin verificar.\r\n" +
-                "Solo las verificadas a fondo se han comparado con el iPhone. La app no borra nada del iPhone.\r\n";
-            File.WriteAllText(Path.Combine(destinationRoot, LastCopyReportName), text);
+            summary.ReportText = CopyReport.Build(summary, counts, DateTime.Now);
+            File.WriteAllText(Path.Combine(destinationRoot, LastCopyReportName), summary.ReportText);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -133,7 +135,7 @@ public sealed class TransferSession
 
     private async Task<(Outcome Outcome, int Files, Technique Used)> RunTechniqueAsync(
         Technique tech, DeviceDescriptor device, TransferOptions options, TransferSummary summary,
-        List<string> reasons, IProgress<TransferProgress>? progress, IProgress<string>? status, CancellationToken ct)
+        List<string> reasons, List<ConnectionProblem> problems, IProgress<TransferProgress>? progress, IProgress<string>? status, CancellationToken ct)
     {
         while (true)
         {
@@ -167,7 +169,7 @@ public sealed class TransferSession
                 if (back == null)
                     throw new DeviceLostException(
                         $"El dispositivo no volvió en {options.ReconnectTimeout.TotalMinutes:F0} minutos. " +
-                        "Lo copiado hasta ahora está guardado: vuelve a pulsar Descargar para continuar.", ex);
+                        "Lo copiado hasta ahora está guardado: pulsa «Continuar».", ex, ConnectionProblem.Disconnected);
 
                 tech = back;
                 summary.Reconnects++;
@@ -179,6 +181,7 @@ public sealed class TransferSession
                 // se anota el motivo y se pasa a la siguiente técnica.
                 var reason = $"{tech.Name}: {ex.Message}";
                 reasons.Add(reason);
+                problems.Add(ConnectionAssistant.Classify(ex));
                 _log.Warn(reason);
                 return (Outcome.Unavailable, 0, tech);
             }
@@ -191,6 +194,24 @@ public sealed class TransferSession
         status?.Report("Comparando el dispositivo con lo ya descargado…");
         progress?.Report(new TransferProgress(TransferPhase.Scanning, 0, 0, 0, 0, null, 0, 0, 0));
         var scan = await Task.Run(() => _engine.Scan(backend, store, options, status, ct), ct).ConfigureAwait(false);
+
+        if (!backend.Device.IsSnapshot)
+        {
+            summary.SeenOnDevice = scan.All.Count;
+            if (backend is ICloudStateReporter cloud)
+            {
+                summary.DeclaredOnDevice = cloud.DeclaredMediaCount;
+                summary.OptimizeStorage = cloud.OptimizeStorage;
+                if (cloud.OptimizeStorage == true)
+                {
+                    const string warn = "El iPhone tiene activado «Optimizar almacenamiento»: parte de las fotos puede estar solo en iCloud y no se podrá copiar. " +
+                                        "Para traerlas: Ajustes → Fotos → «Descargar y conservar originales», espera y copia de nuevo. " + ConnectionGuide.IosNamesVary;
+                    if (!summary.Notices.Contains(warn)) summary.Notices.Add(warn);
+                    _log.Warn(warn);
+                    status?.Report(warn);
+                }
+            }
+        }
 
         _log.Info($"Dispositivo ({backend.Device.Technique}): {scan.All.Count} archivos ({Format.Bytes(scan.TotalBytes)}). " +
                   $"Ya copiados: {scan.AlreadyDone}. Pendientes: {scan.Pending.Count} ({Format.Bytes(scan.PendingBytes)}).");
@@ -243,7 +264,8 @@ public sealed class TransferSession
             }
         }
         throw new DeviceLostException(
-            $"No se ve '{device.DisplayName}'. Comprueba el cable, desbloquéalo y pulsa «Confiar», y vuelve a intentarlo.");
+            $"No se ve '{device.DisplayName}'. Comprueba el cable, desbloquéalo y pulsa «Confiar», y vuelve a intentarlo.",
+            problem: ConnectionProblem.NotVisible);
     }
 
     /// <summary>Tras un corte, espera a que vuelva la misma técnica o, si no, cualquier otra técnica en vivo.</summary>

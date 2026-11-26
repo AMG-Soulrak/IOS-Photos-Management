@@ -30,7 +30,7 @@ public sealed record DupPhoto(AlbumItem Item, FrameStats Stats)
 public sealed record DupGroup(List<DupPhoto> Photos, int Recommended);
 
 /// <summary>
-/// Detecta fotos iguales o casi iguales (ráfagas, la misma foto guardada dos veces, la copia editada «IMG_E…» y su original)
+/// Detecta fotos iguales o casi iguales (ráfagas, la misma foto guardada dos veces). Una versión editada «IMG_E…» y su original NO cuentan como repetidas
 /// y recomienda cuál conservar. No borra nada: las demás se apartan a <see cref="QuarantineFolder"/>, de donde se pueden recuperar.
 /// Compara una huella visual (dHash) de cada foto; dos fotos cuentan como parecidas si la huella difiere en pocos bits y se
 /// hicieron con poco tiempo de diferencia. La recomendación elige la más nítida (varianza del laplaciano); si hay empate,
@@ -67,6 +67,13 @@ public sealed class DuplicateService
             if (home != null) home.Add(p); else groups.Add(new List<DupPhoto> { p });
         }
 
+        // Una versión editada (IMG_E…) y su original no son repetidas: la original sale del grupo (se trata en «Editadas»).
+        foreach (var g in groups)
+        {
+            var editedStems = g.Select(p => (Path.GetDirectoryName(p.Item.Media.RelativePath), EditedVersions.OriginalStem(p.Item.Media.RelativePath)))
+                .Where(x => x.Item2 != null).ToHashSet();
+            g.RemoveAll(p => editedStems.Contains((Path.GetDirectoryName(p.Item.Media.RelativePath), Path.GetFileNameWithoutExtension(p.Item.Media.RelativePath).ToUpperInvariant())));
+        }
         var repeated = groups.Where(g => g.Count > 1).ToList();
         // Las caras y los ojos solo se miran en las fotos que están en un grupo (unos cientos, no toda la biblioteca).
         AnalyzeFaces(root, repeated.SelectMany(g => g).ToList(), progress, ct);
@@ -196,7 +203,7 @@ public sealed class DuplicateService
                 if (list[i].Item.LiveClip != null && list.Any(o => o.Item.LiveClip == null)) notes.Add("conserva su Live Photo");
                 if (parts[i].Exposure < 0.8) notes.Add("zonas quemadas o muy oscuras");
                 if (parts[i].Sharp < 0.85) notes.Add("algo movida o borrosa");
-                if (Path.GetFileName(list[i].Item.Media.RelativePath).StartsWith("IMG_E", StringComparison.OrdinalIgnoreCase)) notes.Add("versión editada");
+                if (EditedVersions.IsEdited(list[i].Item.Media.RelativePath)) notes.Add("versión editada");
             }
             list[i].Notes = string.Join(" · ", notes);
         }
