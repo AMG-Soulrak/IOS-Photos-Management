@@ -39,6 +39,8 @@ public sealed class Thumb : INotifyPropertyChanged
     public string ExpandName => "Ampliar foto " + System.IO.Path.GetFileName(string.IsNullOrEmpty(Relative) ? Path : Relative);
     public Visibility LiveVisibility => LiveClip == null ? Visibility.Collapsed : Visibility.Visible;
     public ImageSource? Source { get => _source; set { _source = value; PropertyChanged?.Invoke(this, new(nameof(Source))); } }
+    /// <summary>Ya se pidió decodificarla (la cuadrícula del álbum suelta las que quedan lejos de la vista).</summary>
+    public bool Requested { get; set; }
     public event PropertyChangedEventHandler? PropertyChanged;
 }
 

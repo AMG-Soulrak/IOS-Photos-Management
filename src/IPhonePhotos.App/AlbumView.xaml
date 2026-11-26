@@ -116,7 +116,7 @@
                 </Border>
             </Grid>
 
-            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer x:Name="Scroller" Grid.Column="1" VerticalScrollBarVisibility="Auto" ScrollChanged="OnThumbsScroll">
                 <StackPanel>
                     <!-- Teclado: Tab entra en las miniaturas, las flechas se mueven entre ellas, Espacio marca e Intro la abre en grande. -->
                     <ItemsControl x:Name="Thumbs" AutomationProperties.Name="Fotos"

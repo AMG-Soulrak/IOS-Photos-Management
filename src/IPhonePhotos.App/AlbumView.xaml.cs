@@ -21,8 +21,8 @@ public sealed record AlbumEntry(string Name, int Count, bool IsInbox = false)
 /// <summary>
 /// Álbum de la carpeta de fotos: miniaturas agrupadas por fecha o por lugar (GPS), y «Mis álbumes»: carpetas propias a las que se
 /// arrastran fotos (se mueven a esa carpeta). Los Live Photos llevan la etiqueta LIVE y se abren en su visor.
-/// shortcut: se muestran 200 fotos por grupo y «Mostrar más» añade otras 200; una cuadrícula virtualizada daría desplazamiento
-/// infinito, pero WPF no trae un panel envolvente virtualizado.
+/// shortcut: se muestran 200 fotos por grupo y «Mostrar más» añade otras 200; los cuadros se crean todos (WPF no trae un panel
+/// envolvente virtualizado), pero solo los cercanos a la vista guardan su imagen (<see cref="TrimThumbs"/>).
 /// </summary>
 public partial class AlbumView : UserControl
 {
@@ -63,7 +63,8 @@ public partial class AlbumView : UserControl
     /// <summary>Datos ya cargados, para que otras páginas no tengan que volver a leer la carpeta.</summary>
     public AlbumData? Data => _data;
 
-    private List<Thumb> Shown => Thumbs.ItemsSource as List<Thumb> ?? new();
+    private System.Collections.ObjectModel.ObservableCollection<Thumb> Shown =>
+        Thumbs.ItemsSource as System.Collections.ObjectModel.ObservableCollection<Thumb> ?? new();
 
     // La selección se guarda por ruta (no en las miniaturas) para poder marcar todo el grupo aunque solo se vea una parte.
     private readonly HashSet<string> _sel = new(StringComparer.OrdinalIgnoreCase);
@@ -290,7 +291,8 @@ public partial class AlbumView : UserControl
         _sel.Clear();
         _anchor = null;
         _shown = 0;
-        Thumbs.ItemsSource = new List<Thumb>();
+        Thumbs.ItemsSource = new System.Collections.ObjectModel.ObservableCollection<Thumb>();
+        Scroller.ScrollToTop();
         ShowMore();
     }
 
@@ -314,11 +316,39 @@ public partial class AlbumView : UserControl
                   + "\nDoble clic o Intro: verla en grande. Arrástrala a un álbum (Ctrl o Mayús + clic para elegir varias)"
         }).ToList();
         _shown += page.Count;
-        Thumbs.ItemsSource = Shown.Concat(page).ToList();
+        // Se añaden a la colección (antes se cambiaba la lista entera y WPF volvía a crear todos los cuadros).
+        var shown = Shown;
+        foreach (var t in page) shown.Add(t);
         MoreButton.Content = $"Mostrar más ({_group.Items.Count - _shown} restantes)";
         MoreButton.Visibility = _shown < _group.Items.Count ? Visibility.Visible : Visibility.Collapsed;
+        Dispatcher.BeginInvoke(TrimThumbs, System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    // shortcut: cada cuadro mide 150 px + 3 de margen por lado (plantilla de Thumbs); si cambia la plantilla, cambiar Cell.
+    private const double Cell = 156;
+    private const int SpareRows = 3;
+
+    private void OnThumbsScroll(object sender, ScrollChangedEventArgs e) => TrimThumbs();
+
+    /// <summary>
+    /// Solo las miniaturas visibles (y 3 filas por arriba y por abajo) tienen imagen: las demás se sueltan y se vuelven a
+    /// decodificar al acercarse. Así «Mostrar más» no acumula memoria con cada página.
+    /// </summary>
+    private void TrimThumbs()
+    {
+        var list = Shown;
+        if (list.Count == 0 || Thumbs.ActualWidth <= 0) return;
+        var perRow = Math.Max(1, (int)(Thumbs.ActualWidth / Cell));
+        var firstRow = (int)(Scroller.VerticalOffset / Cell) - SpareRows;
+        var lastRow = (int)((Scroller.VerticalOffset + Scroller.ViewportHeight) / Cell) + SpareRows;
+        int from = Math.Max(0, firstRow * perRow), to = Math.Min(list.Count - 1, (lastRow + 1) * perRow - 1);
         var token = _thumbCts.Token;
-        foreach (var t in page) _ = ThumbLoader.LoadAsync(t, token);
+        for (var i = 0; i < list.Count; i++)
+        {
+            var t = list[i];
+            if (i < from || i > to) { if (t.Requested || t.Source != null) { t.Requested = false; t.Source = null; } }
+            else if (!t.Requested) { t.Requested = true; _ = ThumbLoader.LoadAsync(t, token); }
+        }
     }
 
     // ------------------------------------------------------------------ Selección, abrir y arrastrar fotos
