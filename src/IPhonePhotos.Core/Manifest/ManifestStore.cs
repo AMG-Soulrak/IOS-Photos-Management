@@ -19,9 +19,12 @@ public sealed class ManifestStore : IDisposable
     private readonly LiteDatabase _db;
     private readonly ILiteCollection<FileRecord> _files;
 
-    private ManifestStore(LiteDatabase db, string path)
+    private readonly string _root;
+
+    private ManifestStore(LiteDatabase db, string path, string root)
     {
         _db = db;
+        _root = root;
         DatabasePath = path;
         _files = db.GetCollection<FileRecord>("files");
         _files.EnsureIndex(x => x.RelativePath);
@@ -37,7 +40,7 @@ public sealed class ManifestStore : IDisposable
         var folder = MetaFolder(destinationRoot);
         Directory.CreateDirectory(folder);
         var path = Path.Combine(folder, "manifest.db");
-        var store = new ManifestStore(OpenDb(path), path);
+        var store = new ManifestStore(OpenDb(path), path, destinationRoot);
         if (!store.LegacyRecords().Any()) return store;
 
         // Manifiesto de ≤ v1.4 con estados que ya no valen: copia previa del fichero (con la base cerrada) y migración.
@@ -45,7 +48,7 @@ public sealed class ManifestStore : IDisposable
         var backup = $"{path}.bak-{DateTime.Now:yyyyMMdd}";
         for (var n = 2; File.Exists(backup); n++) backup = $"{path}.bak-{DateTime.Now:yyyyMMdd}-{n}";
         File.Copy(path, backup);
-        store = new ManifestStore(OpenDb(path), path);
+        store = new ManifestStore(OpenDb(path), path, destinationRoot);
         store.MigrateLegacy();
         return store;
     }
@@ -89,15 +92,30 @@ public sealed class ManifestStore : IDisposable
 #pragma warning restore CS0618
 
     public IReadOnlyList<FileRecord> FindByPath(string relativePath)
-        => _files.Find(x => x.RelativePath == relativePath).ToList();
+        => Safe(_files.Find(x => x.RelativePath == relativePath)).ToList();
 
-    public FileRecord? Get(string id) => _files.FindById(id);
+    public FileRecord? Get(string id) => Safe(new[] { _files.FindById(id) }).FirstOrDefault();
 
     public void Upsert(FileRecord record) => _files.Upsert(record);
 
-    public IEnumerable<FileRecord> All() => _files.FindAll();
+    public IEnumerable<FileRecord> All() => Safe(_files.FindAll());
 
-    public IReadOnlyList<FileRecord> InState(FileState state) => _files.Find(x => x.State == state).ToList();
+    public IReadOnlyList<FileRecord> InState(FileState state) => Safe(_files.Find(x => x.State == state)).ToList();
+
+    /// <summary>
+    /// manifest.db está en la carpeta de fotos y se puede manipular: al LEER, una ruta local que saldría de la carpeta
+    /// se descarta (la copia elige otra dentro) y un registro cuya ruta del dispositivo saldría de ella se ignora.
+    /// Así ni la verificación, ni los álbumes, ni el movedor de archivos tocan nada fuera de la carpeta.
+    /// </summary>
+    private IEnumerable<FileRecord> Safe(IEnumerable<FileRecord?> records)
+    {
+        foreach (var r in records)
+        {
+            if (r == null || !SafePath.IsInside(_root, r.RelativePath)) continue;
+            if (r.LocalRelativePath != null && !SafePath.IsInside(_root, r.LocalRelativePath)) r.LocalRelativePath = null;
+            yield return r;
+        }
+    }
 
     public Dictionary<FileState, int> CountByState()
     {

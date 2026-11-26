@@ -91,8 +91,12 @@ public class SecurityTests
 
         var summary = await new TransferSession(selector, log).RunAsync(device, options, null, null, default);
 
-        Assert.Equal(2, summary.Failed);
+        // Al leer el manifiesto se descarta la ruta manipulada: se copian dentro del destino, nunca en «fuera».
+        Assert.Equal(0, summary.Failed);
+        Assert.Equal(2, summary.Copied);
         Assert.False(Directory.Exists(Path.Combine(sb.Root, "fuera")));
+        using (var store = ManifestStore.Open(sb.Dest))
+            Assert.All(store.All(), r => Assert.True(SafePath.IsInside(sb.Dest, r.EffectiveLocalRelativePath)));
     }
 
     [Fact]
@@ -131,6 +135,29 @@ public class SecurityTests
         File.WriteAllBytes(Path.Combine(target, "imobiledevice.dll"), Sandbox.Bytes(10, 1));
         Assert.Equal(target, NativeVault.Prepare(new[] { real }, target, out _));
         Assert.True(NativeVault.Verify(Path.Combine(target, "imobiledevice.dll")));
+    }
+
+    [Fact]
+    public void Onnx_model_with_a_known_name_and_other_content_is_not_used()
+    {
+        using var sb = new Sandbox();
+        var old = IPhonePhotos.Core.Organize.FaceModels.Folder;
+        try
+        {
+            IPhonePhotos.Core.Organize.FaceModels.Folder = sb.Root;
+            File.WriteAllBytes(Path.Combine(sb.Root, "scrfd_2.5g_kps.onnx"), Sandbox.Bytes(1000, 5));
+            Assert.Null(IPhonePhotos.Core.Organize.FaceModels.Find("scrfd_2.5g_kps.onnx"));
+            Assert.Contains("scrfd_2.5g_kps.onnx", IPhonePhotos.Core.Organize.FaceModels.Notice);
+
+            // Nombre desconocido: se usa, pero se informa del hash.
+            File.WriteAllBytes(Path.Combine(sb.Root, "arcface-otro.onnx"), Sandbox.Bytes(1000, 6));
+            Assert.NotNull(IPhonePhotos.Core.Organize.FaceModels.FindContaining("arcface-otro"));
+            Assert.Contains("SHA-256", IPhonePhotos.Core.Organize.FaceModels.Notice);
+
+            var real = Path.Combine(AppContext.BaseDirectory, "onnx", "scrfd_2.5g_kps.onnx");
+            Assert.Equal(real, IPhonePhotos.Core.Organize.FaceModels.Checked(real));
+        }
+        finally { IPhonePhotos.Core.Organize.FaceModels.Folder = old; }
     }
 
     private static void CopyDir(string from, string to)
