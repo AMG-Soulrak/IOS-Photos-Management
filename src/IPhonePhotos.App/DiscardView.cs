@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -126,7 +126,16 @@ public sealed class DiscardView : UserControl
             Child = new StackPanel { Children = { new Grid { Children = { image, check } }, label } }
         };
         var path = Path.Combine(_root, c.Item.Media.RelativePath);
-        image.MouseLeftButtonDown += (_, e) => { if (e.ClickCount == 2) Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); };
+        var name = Path.GetFileName(c.Item.Media.RelativePath);
+        // Vista grande con anterior/siguiente entre las candidatas que se están viendo.
+        void Open()
+        {
+            var list = _cards.Select(k => new PreviewPhoto(Path.Combine(_root, k.Candidate.Item.Media.RelativePath),
+                Path.GetFileName(k.Candidate.Item.Media.RelativePath), k.Candidate.Item.Date.ToString("d MMM yyyy HH:mm"), k.Candidate.Reason)).ToList();
+            Preview.Open(this, list, Math.Max(0, _cards.FindIndex(k => k.Candidate == c)));
+        }
+        ((Grid)((StackPanel)frame.Child).Children[0]).Children.Add(Preview.ExpandButton(frame, name, Open));
+        Preview.MakeOpenable(frame, $"{name}, {(c.Kind == DiscardKind.Screenshot ? "captura" : "posible documento")}", Open);
         var thumb = new Thumb { Path = path };
         _ = Load(thumb, image);
         return new Card { Candidate = c, Check = check, Frame = frame };

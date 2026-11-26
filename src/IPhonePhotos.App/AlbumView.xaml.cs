@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -309,9 +309,9 @@ public partial class AlbumView : UserControl
             WhereBack = WhereOf(i.Media.RelativePath).Back,
             Selected = _sel.Contains(i.Media.RelativePath),
             Tip = $"{System.IO.Path.GetFileName(i.Media.RelativePath)}\n{i.Date:d MMM yyyy HH:mm}" + (i.Place != null ? $"\n{i.Place}" : "")
-                  + (i.LiveClip != null ? "\nLive Photo: doble clic para verlo y elegir fotograma" : "")
+                  + (i.LiveClip != null ? "\nLive Photo: clic derecho para ver el clip y elegir fotograma" : "")
                   + $"\nEstá en: {WhereOf(i.Media.RelativePath).Text}"
-                  + "\nArrástrala a un álbum (Ctrl o Mayús + clic para elegir varias)"
+                  + "\nDoble clic o Intro: verla en grande. Arrástrala a un álbum (Ctrl o Mayús + clic para elegir varias)"
         }).ToList();
         _shown += page.Count;
         Thumbs.ItemsSource = Shown.Concat(page).ToList();
@@ -327,7 +327,7 @@ public partial class AlbumView : UserControl
 
     private void OnThumbDown(object sender, MouseButtonEventArgs e)
     {
-        if (ThumbOf(sender) is not { } t) return;
+        if (ThumbOf(sender) is not { } t || Preview.FromButton(e.OriginalSource)) return; // el botón de ampliar no selecciona
         if (e.ClickCount == 2) { OpenThumb(t); e.Handled = true; return; }
         _dragOrigin = e.GetPosition(null);
         _downThumb = t;
@@ -356,6 +356,12 @@ public partial class AlbumView : UserControl
         if (ThumbOf(sender) is not { } t) return;
         if (e.Key == Key.Space) { SetSelected(t, !t.Selected); _anchor = t; ShowSelection(); e.Handled = true; }
         else if (e.Key == Key.Enter) { OpenThumb(t); e.Handled = true; }
+    }
+
+    private void OnThumbExpand(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (ThumbOf(sender) is { } t) OpenThumb(t);
     }
 
     private void OnThumbUp(object sender, MouseButtonEventArgs e)
@@ -390,7 +396,9 @@ public partial class AlbumView : UserControl
         if (sender is FrameworkElement fe && fe.ContextMenu == null)
         {
             var menu = new ContextMenu();
-            AddItem(menu, "Abrir", OnThumbOpen);
+            AddItem(menu, "Ver en grande", OnThumbOpen);
+            AddItem(menu, "Live Photo: ver el clip y elegir fotograma…", OnThumbLive);
+            AddItem(menu, "Abrir con el visor de Windows", OnThumbExternal);
             AddItem(menu, "Quitar del álbum (volver a su carpeta por fecha)", OnRemoveFromAlbum);
             AddItem(menu, "Descartar (apartar a «_Descartadas»)…", OnDiscardSelected);
             fe.ContextMenu = menu;
@@ -409,10 +417,25 @@ public partial class AlbumView : UserControl
         if (Shown.FirstOrDefault(t => t.Selected) is { } t) OpenThumb(t);
     }
 
+    /// <summary>Vista grande dentro de la app, con anterior/siguiente entre las miniaturas que se están viendo.</summary>
     private void OpenThumb(Thumb t)
     {
-        if (t.LiveClip != null) new LivePhotoWindow(_log, _folder, t.Relative, t.LiveClip) { Owner = Window.GetWindow(this) }.ShowDialog();
-        else Process.Start(new ProcessStartInfo(t.Path) { UseShellExecute = true });
+        var all = Shown;
+        var photos = all.Select(x => new PreviewPhoto(x.Path, System.IO.Path.GetFileName(x.Relative),
+            (x.Item != null ? $"{x.Item.Date:d MMM yyyy HH:mm}" : "") + (x.LiveClip != null ? " · Live Photo (foto fija)" : ""))).ToList();
+        Preview.Open(this, photos, Math.Max(0, all.IndexOf(t)));
+    }
+
+    private void OnThumbLive(object sender, RoutedEventArgs e)
+    {
+        if (Shown.FirstOrDefault(t => t.Selected) is not { } t) return;
+        if (t.LiveClip == null) { StatusText.Text = "Esa foto no es un Live Photo."; return; }
+        new LivePhotoWindow(_log, _folder, t.Relative, t.LiveClip) { Owner = Window.GetWindow(this) }.ShowDialog();
+    }
+
+    private void OnThumbExternal(object sender, RoutedEventArgs e)
+    {
+        if (Shown.FirstOrDefault(t => t.Selected) is { } t) Process.Start(new ProcessStartInfo(t.Path) { UseShellExecute = true });
     }
 
     // ------------------------------------------------------------------ Álbumes propios

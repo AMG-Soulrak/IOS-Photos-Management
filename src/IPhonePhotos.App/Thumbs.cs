@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -35,6 +35,8 @@ public sealed class Thumb : INotifyPropertyChanged
     public Brush Outline => _selected ? AccentBrush : Brushes.Transparent;
     /// <summary>Lo que lee el lector de pantalla: la foto y si está marcada (la marca solo se ve por el color del borde).</summary>
     public string A11yName => (string.IsNullOrEmpty(Tip) ? System.IO.Path.GetFileName(Relative) : Tip) + (_selected ? ", marcada" : "");
+    /// <summary>Nombre del botón de ampliar para el lector de pantalla.</summary>
+    public string ExpandName => "Ampliar foto " + System.IO.Path.GetFileName(string.IsNullOrEmpty(Relative) ? Path : Relative);
     public Visibility LiveVisibility => LiveClip == null ? Visibility.Collapsed : Visibility.Visible;
     public ImageSource? Source { get => _source; set { _source = value; PropertyChanged?.Invoke(this, new(nameof(Source))); } }
     public event PropertyChangedEventHandler? PropertyChanged;

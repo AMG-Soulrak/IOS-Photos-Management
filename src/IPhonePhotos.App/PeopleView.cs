@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Automation;
@@ -152,16 +152,20 @@ public sealed class PeopleView : UserControl
         if (_data == null) return;
         var keys = g.Faces.Select(f => f.PhotoKey).ToHashSet();
         var items = _data.Items.Where(i => keys.Contains(Album.Key(i.Media))).OrderByDescending(i => i.Date).Take(400).ToList();
-        foreach (var item in items)
+        var photos = items.Select(i => new PreviewPhoto(Path.Combine(_root, i.Media.RelativePath), Path.GetFileName(i.Media.RelativePath),
+            i.Date.ToString("d MMM yyyy HH:mm"))).ToList();
+        for (var n = 0; n < items.Count; n++)
         {
+            var item = items[n];
+            var index = n;
             var thumb = new Thumb { Path = Path.Combine(_root, item.Media.RelativePath), Relative = item.Media.RelativePath, Item = item };
             var image = new Image { Width = 160, Height = 160, Stretch = Stretch.UniformToFill };
+            var grid = new Grid { Children = { image } };
             var border = new Border { Margin = new Thickness(0, 0, 8, 8), CornerRadius = new CornerRadius(6), ClipToBounds = true, Cursor = Cursors.Hand,
-                Background = Brush("ControlBrush"), Child = image, ToolTip = item.Date.ToString("d MMM yyyy") };
-            border.MouseLeftButtonDown += (_, e) =>
-            {
-                if (e.ClickCount == 2) Process.Start(new ProcessStartInfo(thumb.Path) { UseShellExecute = true });
-            };
+                Background = Brush("ControlBrush"), Child = grid, ToolTip = item.Date.ToString("d MMM yyyy") + "\nDoble clic o Intro: verla en grande" };
+            void Open() => Preview.Open(this, photos, index);
+            grid.Children.Add(Preview.ExpandButton(border, photos[n].Name, Open));
+            Preview.MakeOpenable(border, $"{photos[n].Name}, {photos[n].Info}", Open);
             _photos.Children.Add(border);
             _ = LoadAsync(thumb, image, _thumbsCts.Token);
         }

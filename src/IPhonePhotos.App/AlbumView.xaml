@@ -1,4 +1,4 @@
-<UserControl x:Class="IPhonePhotos.App.AlbumView"
+﻿<UserControl x:Class="IPhonePhotos.App.AlbumView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              FontFamily="{StaticResource UiFont}" FontSize="14">
@@ -118,7 +118,7 @@
 
             <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
                 <StackPanel>
-                    <!-- Teclado: Tab entra en las miniaturas, las flechas se mueven entre ellas, Espacio marca y Intro abre. -->
+                    <!-- Teclado: Tab entra en las miniaturas, las flechas se mueven entre ellas, Espacio marca e Intro la abre en grande. -->
                     <ItemsControl x:Name="Thumbs" AutomationProperties.Name="Fotos"
                                   KeyboardNavigation.TabNavigation="Once" KeyboardNavigation.DirectionalNavigation="Contained">
                         <ItemsControl.ItemsPanel>
@@ -126,7 +126,7 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Width="150" Height="150" Margin="3" Background="#10808080" CornerRadius="6" ClipToBounds="True"
+                                <Border x:Name="Root" Width="150" Height="150" Margin="3" Background="#10808080" CornerRadius="6" ClipToBounds="True"
                                         BorderThickness="3" BorderBrush="{Binding Outline}"
                                         ToolTip="{Binding Tip}" Cursor="Hand"
                                         Focusable="True" FocusVisualStyle="{StaticResource FocusRing}" KeyDown="OnThumbKey"
@@ -142,6 +142,17 @@
                                                 HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6">
                                             <TextBlock Text="LIVE" Foreground="White" FontSize="10" FontWeight="SemiBold"/>
                                         </Border>
+                                        <!-- Ampliar: solo abre la vista grande; el clic en la miniatura sigue seleccionando -->
+                                        <Button Click="OnThumbExpand" AutomationProperties.Name="{Binding ExpandName}">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource ExpandThumbButton}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsMouseOver, ElementName=Root}" Value="True"><Setter Property="Opacity" Value="1"/></DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=Root}" Value="True"><Setter Property="Opacity" Value="1"/></DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
                                     </Grid>
                                 </Border>
                             </DataTemplate>

@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
@@ -19,6 +19,7 @@ public sealed class DupCard : INotifyPropertyChanged
     public required Thumb Thumb { get; init; }
     public bool Recommended { get; init; }
     public string Name => Path.GetFileName(Photo.Item.Media.RelativePath);
+    public string ExpandName => "Ampliar foto " + Name;
     public string Info => $"{Photo.Megapixels:0.#} MP · {Format.Bytes(Photo.Size)} · {Photo.Item.Date:d MMM yyyy HH:mm}";
     public string ScoreText => $"Calidad {Photo.Score}/100" + (Photo.Notes.Length > 0 ? $" · {Photo.Notes}" : "");
     public string Label => _keep ? (Recommended ? "Me quedo con esta (recomendada)" : "Me quedo con esta") : (Recommended ? "Era la recomendada · clic para quedarme con esta" : "Se aparta · clic para quedarme con esta");
@@ -92,11 +93,15 @@ public partial class DuplicatesView : UserControl
                 DetailText.Text = $"Analizando fotos: {p.Done} de {p.Total}";
             });
             var distance = Distance;
-            _groups = await Task.Run(() =>
+            var folder = _folder;
+            int edited;
+            (_groups, edited) = await Task.Run(() =>
             {
-                var items = (_data ?? Album.Load(_folder)).Items;
-                return DuplicateService.Find(_folder, items, distance, progress, token);
+                var items = (_data ?? Album.Load(folder)).Items;
+                var groups = DuplicateService.Find(folder, items, distance, progress, token);
+                return (groups, EditedVersions.Find(MediaScanner.Scan(folder, token, includeAlbums: true)).Count);
             }, token);
+            ShowEdited(edited);
             _cards.Clear();
             ShowGroups();
             StatusText.Text = _groups.Count == 0
@@ -121,6 +126,53 @@ public partial class DuplicatesView : UserControl
             Bar.Visibility = Visibility.Collapsed;
             SetBusy(false);
         }
+    }
+
+    // ------------------------------------------------------------------ Versiones editadas (IMG_E… / .AAE)
+
+    private void ShowEdited(int count)
+    {
+        EditedPanel.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        EditedText.Text = $"{count} fotos tienen versión editada (IMG_E…). No son repetidas: son la misma foto antes y después de editarla.";
+    }
+
+    private async void OnSetAsideEdited(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        var folder = _folder;
+        var plan = await Task.Run(() => EditedVersions.PlanSetAsideOriginals(folder));
+        if (plan.Items.Count == 0) { ShowEdited(0); return; }
+        // Simulación antes de mover: qué y cuánto, y que no se borra nada.
+        var aae = plan.Items.Count(i => i.From.EndsWith(".aae", StringComparison.OrdinalIgnoreCase));
+        if (MessageBox.Show(Window.GetWindow(this),
+                $"Simulación: se moverían {plan.Items.Count - aae} fotos originales y {aae} archivos .AAE ({Format.Bytes(plan.TotalBytes)}) " +
+                $"a «{EditedVersions.Folder}». La versión editada se queda donde está.\n\nNo se borra nada (tampoco en el iPhone): " +
+                "puedes devolverlos desde esa carpeta. ¿Apartar ahora?",
+                "Apartar las originales de fotos editadas", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+
+        using var gate = LibraryGate.TryEnter("apartar originales editadas");
+        if (gate == null) { StatusText.Text = LibraryGate.BusyMessage; return; }
+        SetBusy(true);
+        try
+        {
+            var result = await Task.Run(() =>
+            {
+                using var store = FileMover.OpenExistingManifest(folder);
+                return new EditedVersions(_log).Apply(folder, store, plan, null, CancellationToken.None);
+            });
+            StatusText.Text = $"Apartados {result.Moved} archivos a «{EditedVersions.Folder}»." +
+                              (result.Failed.Count > 0 ? $" {result.Failed.Count} con error." : "") +
+                              (result.ReportPath != null ? $" Informe: {result.ReportPath}" : "");
+            ShowEdited(0);
+            FilesMoved?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            var u = IPhonePhotos.Core.Connection.ErrorExplainer.Explain(ex);
+            StatusText.Text = $"{u.Cause} {u.Action}";
+            _log.Error(ex.Message);
+        }
+        finally { SetBusy(false); }
     }
 
     private void ShowGroups()
@@ -174,8 +226,22 @@ public partial class DuplicatesView : UserControl
     // Clic en el resto de la foto: se abre en grande, con flechas para pasar a las otras del grupo.
     private void OnCardOpen(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
+        if (Preview.FromButton(e.OriginalSource)) return;
+        OpenCard(sender);
+    }
+
+    private void OnCardExpand(object sender, RoutedEventArgs e) { e.Handled = true; OpenCard(sender); }
+
+    private void OnCardKey(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key is System.Windows.Input.Key.Enter or System.Windows.Input.Key.Space && e.OriginalSource == sender) { e.Handled = true; OpenCard(sender); }
+    }
+
+    private void OpenCard(object sender)
+    {
         if (((FrameworkElement)sender).DataContext is not DupCard card || Cards.ItemsSource is not List<DupCard> all) return;
-        new PhotoPreviewWindow(all, all.IndexOf(card), Pick) { Owner = Window.GetWindow(this) }.ShowDialog();
+        var photos = all.Select(c => new PreviewPhoto(c.Thumb.Path, c.Name, c.Info, c.ScoreText + (c.Recommended ? " · recomendada por la app" : ""))).ToList();
+        Preview.Open(this, photos, all.IndexOf(card), i => Pick(all[i]), i => all[i].Keep);
     }
 
     private void SetBusy(bool busy) { _busy = busy; SearchButton.IsEnabled = !busy; UpdateButtons(); }
