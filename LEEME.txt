@@ -1,9 +1,9 @@
-FOTOS DEL IPHONE AL PC  (IOS Photos 1.5)
+FOTOS DEL IPHONE AL PC  (IOS Photos 1.6)
 =========================================
 
 Copia todas las fotos y vídeos de un iPhone o iPad a tu PC con Windows.
-Si se corta (cable, bloqueo, apagón…), al volver a pulsar "Descargar / Reanudar"
-continúa justo por lo que faltaba, sin repetir lo ya copiado.
+Si se corta (cable, bloqueo, apagón…), al pulsar "Continuar" sigue justo por lo que
+faltaba, sin repetir lo ya copiado.
 La aplicación SOLO LEE del iPhone: nunca borra ni cambia nada en él.
 
 CÓMO USARLO
@@ -11,7 +11,9 @@ CÓMO USARLO
 1. Instala con IPhonePhotos-Setup-x.y.z.exe (sin administrador) o, sin instalar, copia esta carpeta donde quieras.
 2. Conecta el iPhone con un cable de DATOS, desbloquéalo y pulsa "Confiar".
 3. Abre IPhonePhotos.exe, pulsa "Descargar del iPhone", elige la carpeta y pulsa
-   "Descargar / Reanudar".
+   "Descargar" (tras la primera copia, el botón dice "Copiar solo lo nuevo").
+Si no aparece el iPhone, pulsa "Ayuda de conexión": comprueba paso a paso qué falla
+(controlador, cable, desbloqueo, "Confiar"), dice qué hacer y lo vuelve a intentar sola.
 
 IMPORTANTE (única dependencia que no es portable)
 --------------------------------------------------
@@ -37,7 +39,10 @@ estar en el teléfono: cambia a "Descargar y conservar originales" antes de copi
 
 BOTONES DE LA DESCARGA
 ----------------------
-- Descargar / Reanudar : copia lo que falte. Se puede detener y repetir cuando quieras.
+- Descargar / Copiar solo lo nuevo / Continuar : copia lo que falte. Se puede detener
+                         y repetir cuando quieras. Si un archivo falla, el resto se copia
+                         igual y al final ves la lista "No copiados" con el motivo y
+                         "Reintentar".
 - Ver qué falta        : compara el iPhone con lo ya copiado, sin copiar nada.
 - Verificar copias     : relee lo copiado y comprueba que está intacto.
                          "a fondo" relee también el iPhone y compara el contenido.
@@ -45,7 +50,12 @@ BOTONES DE LA DESCARGA
 "Si ya hay fotos" con la opción rápida: las fotos que ya estaban en la carpeta con el
 mismo nombre, tamaño y fecha no se descargan otra vez, pero quedan "adoptadas, sin
 verificar" hasta que pases una verificación "a fondo".
-Al terminar cada copia se guarda un resumen en "ultima-copia.txt" dentro de la carpeta.
+- Guardar también una copia JPG (casilla, desactivada): crea un JPG de cada HEIC en la
+  carpeta "<destino> (JPG)", sin tocar los originales.
+- Con "Año\Mes", cada foto va a la carpeta de su fecha de captura (si la tiene).
+Al terminar cada copia se guarda un informe en "ultima-copia.txt" dentro de la carpeta
+(sin nombres de archivo ni datos del iPhone) y se muestra en pantalla.
+Si un error aparece, verás la causa, qué hacer y "Reintentar"; lo técnico, en "Detalles".
 
 ¿Y PARA LIBERAR ESPACIO EN EL IPHONE?
 -------------------------------------
@@ -59,7 +69,11 @@ ORDENAR (barra lateral de la ventana principal)
 - Organizar por año y mes, por lugar, limpiar Live Photos: primero muestran qué harían
   (simulación) y no mueven nada hasta que pulses "Aplicar". Nunca borran.
 - Álbumes, Repetidas y Descartes: mueven fotos a carpetas dentro de tu carpeta de fotos
-  ("Álbumes", "_Duplicados", "_Descartadas"); no borran nada.
+  ("Álbumes", "_Duplicados", "_Descartadas"); no borran nada. Una foto editada en el
+  iPhone (IMG_E...) y su original no cuentan como repetidas; Repetidas ofrece apartar
+  las originales a "_Originales-editadas", enseñando antes qué movería.
+- Cada miniatura tiene un botón para verla en grande (también doble clic o Intro):
+  zoom con la rueda o + y -, flechas para pasar de foto, F11 pantalla completa, Esc cerrar.
 - Personas: viene desactivado. Analiza caras (datos biométricos, también de otras
   personas) solo en tu PC y guarda esos datos fuera de la carpeta de fotos. Tiene un botón
   para borrarlos todos. Necesita los modelos de caras, que no vienen con la aplicación
@@ -84,6 +98,7 @@ iphotos.exe --help
 
 SI EL IPHONE NO APARECE
 -----------------------
+Pulsa "Ayuda de conexión" (ventana de descarga o barra lateral). Además:
 Abre "Apple Devices": si ahí tampoco aparece el iPhone, el problema está entre el cable y
 Windows: usa un cable de DATOS, prueba otro puerto USB y desbloquea el iPhone.
 En un PC de empresa, el control de dispositivos USB puede bloquear iPhones: no lo
@@ -91,10 +106,18 @@ desactives por tu cuenta; pide a TI que permita dispositivos Apple (USB VID_05AC
 
 SI ALGO FALLA
 -------------
-- Para enviar un diagnóstico: ejecuta  iphotos.exe devices  y  iphotos.exe probe.
+- Para enviar un diagnóstico: "Ayuda de conexión" > "Diagnóstico", o ejecuta
+  iphotos.exe devices  y  iphotos.exe probe.
   El archivo informe-conexion.txt no incluye el número de serie ni el nombre de tu
   iPhone, pero revísalo antes de enviarlo.
 - Si ninguna técnica en vivo funciona: abre Apple Devices, pulsa "Hacer copia ahora"
   (sin cifrar) y vuelve a pulsar Descargar: la aplicación leerá esa copia.
+
+LO QUE AÚN NO SE HA PROBADO CON UN IPHONE REAL (v1.6)
+------------------------------------------------------
+La ayuda de conexión, la copia de más de 1.000 fotos, el corte de cable con
+reanudación, las fechas de captura de fotos y vídeos del iPhone y el aviso de iCloud.
+Hoy la app no puede saber si hay fotos solo en iCloud: lo dice ("no se pudo comprobar").
+Los nombres de los menús de Ajustes del iPhone pueden variar según la versión de iOS.
 
 Licencia MIT (LICENSE). Componentes de terceros: THIRD-PARTY-NOTICES.md.

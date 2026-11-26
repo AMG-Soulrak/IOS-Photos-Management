@@ -2,7 +2,7 @@
 
 El código de IOS Photos está bajo licencia MIT (ver `LICENSE`). Usa los componentes de abajo. La licencia de cada paquete NuGet se ha leído de su `.nuspec` (y de su archivo de licencia cuando el paquete lo trae) en la caché local, versión exacta del proyecto. **«No leído»** significa que el paquete no trae el texto y no se ha podido comprobar sin conexión: hay que verificarlo antes de distribuir.
 
-Generado para la versión 1.5.0. No es asesoramiento legal.
+Generado para la versión 1.6.0 (la v1.6 no añade dependencias: lee EXIF y QuickTime con WIC de Windows y código propio). No es asesoramiento legal.
 
 ## Paquetes .NET que van dentro del programa
 

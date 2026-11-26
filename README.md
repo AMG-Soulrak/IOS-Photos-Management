@@ -2,14 +2,21 @@
 
 Programa personal para **Windows** que copia las fotos y vídeos de un iPhone o iPad al PC, **se puede cortar y reanudar**, comprueba lo copiado y ayuda a ordenarlo (álbumes, repetidas, descartes, personas). **Solo lee del iPhone: nunca borra ni escribe nada en él** (desde la v1.5).
 
-Versión 1.5.0 · Licencia MIT (`LICENSE`) · Avisos de terceros en `THIRD-PARTY-NOTICES.md` · Texto para el usuario final en `LEEME.txt`.
+Versión 1.6.0 · Licencia MIT (`LICENSE`) · Avisos de terceros en `THIRD-PARTY-NOTICES.md` · Texto para el usuario final en `LEEME.txt`.
 
 ## Qué hace
 
-- **Copia** todo lo que hay en el carrete (`DCIM`) a una carpeta del PC. Guarda qué está copiado en `.iphotos\manifest.db` (dentro de esa carpeta); si se corta (cable, bloqueo, apagón), continúa solo con lo que falta.
+- **Ayuda de conexión** (v1.6): ventana «Conectar tu iPhone o iPad», siempre a mano (ventana de descarga, barra lateral y cada error de conexión). Arriba, el asistente comprueba en orden *controlador de Apple → cable → iPhone desbloqueado → «Confiar» → lectura*, da **una** causa y **una** acción, reintenta solo cada 4 s mientras está abierta y tiene «Diagnóstico» (el informe de `probe`, sin serie ni nombre). Debajo, la guía fija: qué preparar en el teléfono y una tabla síntoma → causa → acción. Los textos salen de una sola fuente (`Core/Connection/ConnectionGuide.cs`).
+- **Errores en lenguaje llano** (v1.6): cada error de copia o conexión dice una causa, una acción y «Reintentar»; lo técnico va plegado en «Detalles».
+- **Copia** todo lo que hay en el carrete (`DCIM`) a una carpeta del PC. Guarda qué está copiado en `.iphotos\manifest.db` (dentro de esa carpeta); si se corta (cable, bloqueo, apagón), «Continuar» sigue solo con lo que falta. Muestra «X de Y · velocidad · tiempo restante». Un archivo que falla **no detiene el resto**: al final hay una lista «no copiados» con su motivo y «Reintentar» (uno a uno o todos). No hay límite de tanda por diseño (prueba automática con 1.210 archivos simulados; con iPhone real, sin probar).
+- **Solo lo nuevo** (v1.6): tras la primera copia en una carpeta, el botón pasa a «Copiar solo lo nuevo»; lo ya copiado nunca se repite.
+- **Fechas** (v1.6): al copiar se lee la fecha de captura (EXIF en fotos, cabecera QuickTime en vídeos). La fecha de **creación** del archivo pasa a ser la de captura y «Año\Mes» usa esa fecha. La fecha de **modificación** sigue siendo la del iPhone, porque con ella se reconoce una foto ya copiada. El informe cuenta las que no tienen fecha de captura fiable.
+- **Copia JPG de los HEIC** (v1.6, casilla desactivada por defecto): guarda además un JPG de cada HEIC en «`<destino> (JPG)`», sin tocar los originales. Si Windows no puede abrir los HEIC copiados, avisa al terminar.
+- **Aviso de iCloud** (v1.6): si el dispositivo dijera que «Optimizar almacenamiento» está activo o cuántas fotos tiene, la app avisa y compara. **Hoy ninguna técnica real (WPD, AFC, copia de seguridad) lo informa**, así que el informe dice «no se pudo comprobar» en vez de afirmar nada.
 - **Verifica**: calcula el SHA-256 durante la copia. «Verificar copias» relee lo del PC; «a fondo» relee también el iPhone y compara contenido. Lo que no coincide se vuelve a descargar **aparte** (el archivo dudoso no se toca).
-- **Informe** `ultima-copia.txt` en la carpeta de destino tras cada copia: fecha y recuentos (sin número de serie, nombre del iPhone ni nombres de archivo).
-- **Ordena** (funciones congeladas desde la v1.5: se corrigen fallos, no se añaden funciones): carpetas Año\Mes o por lugar, limpieza de clips de Live Photos, álbumes propios (carpetas en `Álbumes\`), repetidas y descartes (capturas, documentos). **Nada se borra**: se mueve a carpetas como `_Duplicados` o `_Descartadas`, siempre con simulación o confirmación previa.
+- **Informe** en texto, `ultima-copia.txt` en la carpeta de destino y en la pantalla final: copiadas, ya estaban y adoptadas sin verificar, verificadas, no copiadas por motivo, solo en iCloud (si se sabe), sin fecha fiable, versiones editadas, tamaño y duración. Sin número de serie, nombre del iPhone ni nombres de archivo. Recuerda que, con Fotos de iCloud, borrar en el iPhone también borra en iCloud, y que la app no borra nada del teléfono. Botones «Verificar a fondo ahora» y «Abrir carpeta».
+- **Vista grande** (v1.6): cada miniatura (álbum, repetidas, personas, descartes) tiene un botón «ampliar» que aparece al pasar el ratón o con el foco de teclado. Doble clic e Intro también abren (Espacio también, salvo en el álbum, donde sigue marcando la foto). La vista grande ocupa la ventana, con zoom (rueda, + / −, «100 %»), ← → dentro de lo que se estaba viendo, F11 para pantalla completa y Esc para cerrar. Solo lee los archivos.
+- **Ordena**: carpetas Año\Mes o por lugar, limpieza de clips de Live Photos, álbumes propios (carpetas en `Álbumes\`), repetidas y descartes (capturas, documentos). Álbumes, personas, repetidas y descartes no ganan funciones nuevas en la v1.6, salvo esto: una foto editada (`IMG_E…`) y su original **ya no cuentan como repetidas**, y «Repetidas» ofrece apartar las originales y sus `.AAE` a `_Originales-editadas`, con simulación antes. **Nada se borra**: se mueve a carpetas como `_Duplicados`, `_Descartadas` u `_Originales-editadas`, siempre con simulación o confirmación previa.
 - **Personas** (opcional, ver abajo): agrupa caras por parecido, todo en el PC.
 
 Para liberar espacio en el iPhone: verifica la copia (mejor «a fondo»), pulsa **Abrir carpeta** para comprobarla y borra tú mismo desde la app Fotos. Si usas *Fotos de iCloud*, borrar en el iPhone también borra en iCloud.
@@ -80,12 +87,16 @@ Opciones comunes: `--device N`, `--only wpd|afc|backup`, `--no-snapshot`, `--bac
 
 ## Límites conocidos
 
-- Sin iPhone real en las pruebas automáticas: WPD y AFC solo se han probado a mano (la v1.4 descargó con un iPhone; la v1.5 no se ha probado con hardware). WPD abre ahora solo con `GenericRead`.
+- Sin iPhone real en las pruebas automáticas: WPD y AFC solo se han probado a mano (la v1.4 descargó con un iPhone; **la v1.5 y la v1.6 no se han probado con hardware**). WPD abre ahora solo con `GenericRead`.
+- **Sin probar con un iPhone real (v1.6):** las causas que da el asistente (las de AFC salen de los códigos de libimobiledevice; con WPD solo se distingue «no se ve» o «no enseña fotos»), la copia de más de 1.000 elementos, el corte de cable con reanudación, la fecha de captura de HEIC y MOV reales del iPhone y el caso de iCloud optimizado. Las rutas de Ajustes de iOS que cita la guía pueden cambiar de nombre según la versión de iOS.
+- La comparación con iCloud no funciona todavía con ninguna técnica real: dice «no se pudo comprobar».
+- Fecha de captura de vídeo: solo se lee la cabecera `mvhd` (UTC); la etiqueta de Apple con zona horaria no se lee.
+- La vista grande decodifica la foto entera (hasta 8.000 px de ancho) solo mientras está abierta; las miniaturas siguen sin virtualizar.
 - Un archivo cortado a mitad se vuelve a copiar entero.
 - La identidad de un archivo es ruta + tamaño + fecha; una técnica que no informa fechas no adopta nada por nombre y tamaño (puede copiar de más, nunca de menos).
 - AFC depende de bibliotecas nativas de 2021 (OpenSSL 1.1.1 sin soporte).
 - Ejecutables sin firmar: SmartScreen avisará.
-- Organizar puede usar la fecha del archivo, que en fotos importadas o editadas con otras herramientas no siempre es la de la toma.
+- «Organizar» (después de copiar) sigue usando la fecha del archivo, que en fotos importadas o editadas con otras herramientas no siempre es la de la toma. La copia con «Año\Mes» ya usa la fecha de captura.
 
 ## Compilar
 
@@ -93,7 +104,7 @@ Con el SDK de .NET 8 instalado normalmente (no hace falta el SDK portable):
 
 ```powershell
 dotnet build IPhonePhotos.sln
-dotnet test tests/IPhonePhotos.Tests --filter "Category!=Perf"   # 85 pruebas
+dotnet test tests/IPhonePhotos.Tests --filter "Category!=Perf"   # 128 pruebas
 dotnet test tests/IPhonePhotos.Tests --filter "Category=Perf"    # escalado N/2N/4N (opcional)
 ```
 
