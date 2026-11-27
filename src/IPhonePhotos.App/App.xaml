@@ -43,6 +43,15 @@
             <Setter Property="Foreground" Value="{DynamicResource Label}"/>
         </Style>
 
+        <!-- Globos de ayuda con los colores del tema (en modo oscuro, el texto claro quedaba sobre fondo claro: parecían vacíos) -->
+        <Style TargetType="ToolTip">
+            <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Label}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Stroke}"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
+        </Style>
+
         <!-- Texto que desaparece (sin dejar hueco) cuando está vacío -->
         <Style x:Key="AutoHide" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
             <Style.Triggers>
